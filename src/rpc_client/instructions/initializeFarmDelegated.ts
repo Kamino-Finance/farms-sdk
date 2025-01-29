@@ -24,7 +24,7 @@ export function initializeFarmDelegated(
 ) {
   const keys: Array<AccountMeta> = [
     { pubkey: accounts.farmAdmin, isSigner: true, isWritable: true },
-    { pubkey: accounts.farmDelegate, isSigner: true, isWritable: true },
+    { pubkey: accounts.farmDelegate, isSigner: true, isWritable: false },
     { pubkey: accounts.farmState, isSigner: false, isWritable: true },
     { pubkey: accounts.globalConfig, isSigner: false, isWritable: false },
     {

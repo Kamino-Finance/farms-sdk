@@ -24,7 +24,7 @@ export function initializeUser(
   programId: PublicKey = PROGRAM_ID,
 ) {
   const keys: Array<AccountMeta> = [
-    { pubkey: accounts.authority, isSigner: true, isWritable: true },
+    { pubkey: accounts.authority, isSigner: true, isWritable: false },
     { pubkey: accounts.payer, isSigner: true, isWritable: true },
     { pubkey: accounts.owner, isSigner: false, isWritable: false },
     { pubkey: accounts.delegatee, isSigner: false, isWritable: false },

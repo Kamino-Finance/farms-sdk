@@ -119,7 +119,7 @@
         },
         {
           "name": "farmDelegate",
-          "isMut": true,
+          "isMut": false,
           "isSigner": true
         },
         {
@@ -303,7 +303,7 @@
       "accounts": [
         {
           "name": "authority",
-          "isMut": true,
+          "isMut": false,
           "isSigner": true
         },
         {
