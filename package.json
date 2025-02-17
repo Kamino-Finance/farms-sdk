@@ -38,7 +38,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.28.0",
     "@coral-xyz/borsh": "^0.28.0",
-    "@kamino-finance/klend-sdk": "^5.10.31",
+    "@kamino-finance/klend-sdk": "^5.10.32",
     "@kamino-finance/kliquidity-sdk": "^7.0.13",
     "@kamino-finance/scope-sdk": "^8.0.4",
     "@solana/spl-token": "^0.4.9",
