@@ -14,12 +14,19 @@ import {
 } from "@solana/web3.js";
 import { Farms } from "../Farms";
 import { initializeClient } from "./utils";
-import { Env, accountExist, getFarmsProgramId, sleep } from "../utils";
+import {
+  Env,
+  Web3Client,
+  accountExist,
+  getFarmsProgramId,
+  sleep,
+} from "../utils";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export async function initAllKlendUserObligationFarmsFromFileCommand(
   market: string,
   file: string,
+  farmType: string,
 ) {
   const admin = process.env.ADMIN;
   const rpc = process.env.RPC;
@@ -27,6 +34,7 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
 
   const env = initializeClient(rpc!, admin!, getFarmsProgramId(rpc!), false);
   const c = env.provider.connection;
+  const w3c = new Web3Client(rpc!);
   const farmsClient = new Farms(env.provider.connection);
 
   const shouldExecute = true;
@@ -66,8 +74,9 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
       const reserve = kaminoMarket.getReserveByMint(deposit[1].mintAddress)!;
 
       const reserveFarms: [PublicKey, number][] = [
-        [reserve.state.farmCollateral, 0],
-        // [reserve.state.farmDebt, 1],
+        farmType === "collateral"
+          ? [reserve.state.farmCollateral, 0]
+          : [reserve.state.farmDebt, 1],
       ];
       for (const [reserveFarm, mode] of reserveFarms) {
         if (reserveFarm.equals(PublicKey.default)) {
@@ -99,6 +108,7 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
       }
     }
   }
+
   // Execute these first
   console.log("Executing ixns", ixns.length);
   let promises: any = [];
@@ -111,11 +121,9 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
       console.log("Executing ixn", i);
       if (thisBatch.length >= batchSize || i === ixns.length - 1) {
         promises.push(
-          executeWithoutAwait(env, farmsClient, thisBatch, i, ixns.length).then(
-            (sig) => {
-              console.log(`Init Signature ${sig} for ${i}/${ixns.length}`);
-            },
-          ),
+          executeWithoutAwait(env, farmsClient, thisBatch, w3c).then((sig) => {
+            console.log(`Init Signature ${sig} for ${i}/${ixns.length}`);
+          }),
         );
         thisBatch = [];
       }
@@ -133,8 +141,7 @@ const executeWithoutAwait = async (
   env: Env,
   farmsClient: Farms,
   thisBatch: TransactionInstruction[],
-  i: number,
-  len: number,
+  web3Client: Web3Client,
 ) => {
   let numRetries = 5;
   let retry = 0;
@@ -144,6 +151,8 @@ const executeWithoutAwait = async (
         thisBatch,
         env.initialOwner,
         [],
+        web3Client,
+        25_000,
       );
       return sig;
     } catch (e) {

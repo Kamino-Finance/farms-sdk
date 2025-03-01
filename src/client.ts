@@ -294,25 +294,30 @@ async function main() {
 
   commands
     .command("download-all-user-obligations-for-reserve")
-    .option(`--market <string>`)
-    .option(`--reserve <string>`)
+    .requiredOption(`--market <string>`)
+    .requiredOption(`--reserve <string>`)
     .action(async ({ market, reserve }) => {
       await downloadAllUserObligationsForReserve(market, reserve);
     });
 
   commands
     .command("init-all-klend-user-obligation-farms-from-file")
-    .option(`--market <string>`)
-    .option(`--file <string>`)
-    .action(async ({ market, file }) => {
-      await initAllKlendUserObligationFarmsFromFileCommand(market, file);
+    .requiredOption(`--market <string>`)
+    .requiredOption(`--file <string>`)
+    .requiredOption(`--farm-type <string>`, `collateral | debt`)
+    .action(async ({ market, file, farmType }) => {
+      await initAllKlendUserObligationFarmsFromFileCommand(
+        market,
+        file,
+        farmType,
+      );
     });
 
   commands
     .command("refresh-all-klend-obligation-farms-from-file")
-    .option(`--market <string>`)
-    .option(`--file <string>`)
-    .action(async ({ market, file }) => {
+    .requiredOption(`--market <string>`)
+    .requiredOption(`--file <string>`)
+    .action(async ({ market, file, farmType }) => {
       await refreshAllKlendObligationFarmsFromFileCommand(market, file);
     });
 

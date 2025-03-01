@@ -2,6 +2,7 @@ import {
   KaminoAction,
   KaminoMarket,
   KaminoObligation,
+  Web3Client,
   getObligationTypeFromObligation,
   sleep,
 } from "@kamino-finance/klend-sdk";

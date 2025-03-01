@@ -30,16 +30,32 @@ export async function downloadAllUserObligationsForReserve(
 
   let obligationsGenerator = kaminoMarket.batchGetAllObligationsForMarket();
 
-  const writeStream = fs.createWriteStream(
-    `./obligations-${reserve.toString()}.json`,
+  const writeStreamCollateral = fs.createWriteStream(
+    `./obligations-coll-${reserve.toString()}.json`,
   );
-  writeStream.write("[\n");
+
+  const writeStreamDebt = fs.createWriteStream(
+    `./obligations-debt-${reserve.toString()}.json`,
+  );
+
+  writeStreamCollateral.write("[\n");
+  writeStreamDebt.write("[\n");
   let sep = "";
   for await (const obligations of obligationsGenerator) {
     for (const obligation of obligations) {
       for (const deposit of obligation.state.deposits) {
         if (deposit.depositReserve.equals(reserve)) {
-          writeStream.write(
+          writeStreamCollateral.write(
+            `${sep}"${obligation.obligationAddress.toString()}"`,
+          );
+          if (!sep) {
+            sep = ",\n";
+          }
+        }
+      }
+      for (const borrow of obligation.state.borrows) {
+        if (borrow.borrowReserve.equals(reserve)) {
+          writeStreamDebt.write(
             `${sep}"${obligation.obligationAddress.toString()}"`,
           );
           if (!sep) {
@@ -50,8 +66,8 @@ export async function downloadAllUserObligationsForReserve(
     }
     continue;
   }
-
-  writeStream.write("\n]");
+  writeStreamCollateral.write("\n]");
+  writeStreamDebt.write("\n]");
 
   return;
 }
