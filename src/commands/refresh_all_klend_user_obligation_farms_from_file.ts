@@ -2,7 +2,6 @@ import {
   KaminoAction,
   KaminoMarket,
   KaminoObligation,
-  Web3Client,
   getObligationTypeFromObligation,
   sleep,
 } from "@kamino-finance/klend-sdk";
@@ -18,7 +17,10 @@ import {
   TransactionSignature,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { initializeClient } from "./utils";
+import {
+  createAddExtraComputeUnitFeeTransaction,
+  initializeClient,
+} from "./utils";
 import { Env, getFarmsProgramId } from "../utils";
 
 export const LENDING_LUT = new PublicKey(
@@ -140,7 +142,17 @@ export const sendTransactionFromAction = async (
   lookupTables: AddressLookupTableAccount[],
   withDescription: string = "",
 ): Promise<TransactionSignature> => {
+  const priorityFeeMultiplier = 50_000;
+  const microLamport = 10 ** 6; // 1 lamport
+  const computeUnits = 1_200_000;
+  const microLamportsPrioritizationFee = microLamport / computeUnits;
+  const priorityFeeIxn = createAddExtraComputeUnitFeeTransaction(
+    computeUnits,
+    Math.round(microLamportsPrioritizationFee * priorityFeeMultiplier),
+  );
+
   const ixs = [
+    ...priorityFeeIxn,
     ...kaminoAction.setupIxs,
     ...kaminoAction.lendingIxs,
     ...kaminoAction.cleanupIxs,
@@ -222,18 +234,16 @@ async function buildRefreshObligationTxns(
   if (!firstKaminoReserve) {
     throw new Error(`Reserve ${firstReserve.toBase58()} not found`);
   }
-  const obligationType = getObligationTypeFromObligation(
-    kaminoMarket,
-    kaminoObligation,
-  );
   const axn = await KaminoAction.initialize(
     "refreshObligation",
     "0",
     firstKaminoReserve?.getLiquidityMint(),
     kaminoObligation.state.owner,
     kaminoMarket,
-    obligationType,
-    kaminoMarket.programId,
+    kaminoObligation,
+    PublicKey.default,
+    undefined,
+    payer,
   );
 
   axn.addRefreshObligation(payer);

@@ -304,11 +304,13 @@ async function main() {
     .command("init-all-klend-user-obligation-farms-from-file")
     .requiredOption(`--market <string>`)
     .requiredOption(`--file <string>`)
+    .requiredOption(`--reserve <string>`)
     .requiredOption(`--farm-type <string>`, `collateral | debt`)
-    .action(async ({ market, file, farmType }) => {
+    .action(async ({ market, file, reserve, farmType }) => {
       await initAllKlendUserObligationFarmsFromFileCommand(
         market,
         file,
+        reserve,
         farmType,
       );
     });
@@ -317,7 +319,7 @@ async function main() {
     .command("refresh-all-klend-obligation-farms-from-file")
     .requiredOption(`--market <string>`)
     .requiredOption(`--file <string>`)
-    .action(async ({ market, file, farmType }) => {
+    .action(async ({ market, file }) => {
       await refreshAllKlendObligationFarmsFromFileCommand(market, file);
     });
 

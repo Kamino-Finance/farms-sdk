@@ -886,7 +886,7 @@ export class Farms {
     priorityFeeMultiplier: number = 0,
   ): Promise<TransactionSignature> {
     const microLamport = 10 ** 6; // 1 lamport
-    const computeUnits = 200_000;
+    const computeUnits = 1_200_000;
     const microLamportsPrioritizationFee = microLamport / computeUnits;
 
     const tx = new Transaction();
@@ -894,7 +894,7 @@ export class Farms {
     if (priorityFeeMultiplier) {
       const priorityFeeIxn = createAddExtraComputeUnitFeeTransaction(
         computeUnits,
-        microLamportsPrioritizationFee * priorityFeeMultiplier,
+        Math.round(microLamportsPrioritizationFee * priorityFeeMultiplier),
       );
       tx.add(...priorityFeeIxn);
     }

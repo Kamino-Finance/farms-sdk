@@ -26,6 +26,7 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 export async function initAllKlendUserObligationFarmsFromFileCommand(
   market: string,
   file: string,
+  reserveStr: string,
   farmType: string,
 ) {
   const admin = process.env.ADMIN;
@@ -34,8 +35,8 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
 
   const env = initializeClient(rpc!, admin!, getFarmsProgramId(rpc!), false);
   const c = env.provider.connection;
-  const w3c = new Web3Client(rpc!);
   const farmsClient = new Farms(env.provider.connection);
+  const reserveAddress = new PublicKey(reserveStr);
 
   const shouldExecute = true;
   const lendingMarket = new PublicKey(market);
@@ -70,41 +71,39 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
     if (!obligation) {
       continue;
     }
-    for (const deposit of obligation.deposits) {
-      const reserve = kaminoMarket.getReserveByMint(deposit[1].mintAddress)!;
+    const reserve = kaminoMarket.getReserveByAddress(reserveAddress)!;
 
-      const reserveFarms: [PublicKey, number][] = [
-        farmType === "collateral"
-          ? [reserve.state.farmCollateral, 0]
-          : [reserve.state.farmDebt, 1],
-      ];
-      for (const [reserveFarm, mode] of reserveFarms) {
-        if (reserveFarm.equals(PublicKey.default)) {
-          continue;
-        }
+    const reserveFarms: [PublicKey, number][] = [
+      farmType === "collateral"
+        ? [reserve.state.farmCollateral, 0]
+        : [reserve.state.farmDebt, 1],
+    ];
+    for (const [reserveFarm, mode] of reserveFarms) {
+      if (reserveFarm.equals(PublicKey.default)) {
+        continue;
+      }
 
-        // For this reserve, do both collateral and debt
-        const userStatePda = getUserFarmPda(
-          reserveFarm,
-          obligation.obligationAddress,
-          farmsClient.getProgramID(),
+      // For this reserve, do both collateral and debt
+      const userStatePda = getUserFarmPda(
+        reserveFarm,
+        obligation.obligationAddress,
+        farmsClient.getProgramID(),
+      );
+
+      // Only init if does not exist
+      if (!(await accountExist(c, userStatePda))) {
+        ixns.push(
+          getInitIxn(
+            env,
+            obligation,
+            kaminoMarket,
+            reserve,
+            reserveFarm,
+            userStatePda,
+            farmsClient.getProgramID(),
+            mode,
+          ),
         );
-
-        // Only init if does not exist
-        if (!(await accountExist(c, userStatePda))) {
-          ixns.push(
-            getInitIxn(
-              env,
-              obligation,
-              kaminoMarket,
-              reserve,
-              reserveFarm,
-              userStatePda,
-              farmsClient.getProgramID(),
-              mode,
-            ),
-          );
-        }
       }
     }
   }
@@ -121,9 +120,11 @@ export async function initAllKlendUserObligationFarmsFromFileCommand(
       console.log("Executing ixn", i);
       if (thisBatch.length >= batchSize || i === ixns.length - 1) {
         promises.push(
-          executeWithoutAwait(env, farmsClient, thisBatch, w3c).then((sig) => {
-            console.log(`Init Signature ${sig} for ${i}/${ixns.length}`);
-          }),
+          executeWithoutAwait(env, farmsClient, thisBatch, env.web3Client).then(
+            (sig) => {
+              console.log(`Init Signature ${sig} for ${i}/${ixns.length}`);
+            },
+          ),
         );
         thisBatch = [];
       }
