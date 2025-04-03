@@ -1,5 +1,4 @@
 import { Keypair } from "@solana/web3.js";
-import { utils } from "mocha";
 import { Farms } from "../Farms";
 import { GlobalConfig } from "../rpc_client/accounts";
 import { initializeClient } from "./utils";

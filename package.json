@@ -46,11 +46,15 @@
     "base58-js": "1.0.5",
     "bn.js": "^5.2.1",
     "bs58": "^4.0.1",
-    "cli-color": "^2.0.4",
     "commander": "^9.3.0",
-    "decimal.js": "^10.4.3"
+    "decimal.js": "^10.4.3",
+    "picocolors": "^1.1.1"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/bs58": "^4.0.4"
   }
 }

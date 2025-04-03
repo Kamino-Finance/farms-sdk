@@ -25,7 +25,7 @@ import {
 import { RewardCurvePoint } from "../Farms";
 import { FarmConfig } from "./download_all_farm_configs";
 import fs from "fs";
-import clc from "cli-color";
+import colors from "picocolors";
 import { U64_MAX } from "@kamino-finance/klend-sdk";
 import { BN } from "@coral-xyz/anchor";
 
@@ -1077,12 +1077,12 @@ async function initRewardIfNecessary(
     mode !== "multisig" &&
       console.log(
         "Change for farm: ",
-        clc.yellow(farmConfig.farmPubkey.toString().padEnd(50)),
+        colors.yellow(farmConfig.farmPubkey.toString().padEnd(50)),
       );
     mode !== "multisig" &&
       console.log(
-        clc.green("initialize new reward with mint".padEnd(40) + ": "),
-        clc.yellow(rewardMint.toString()),
+        colors.green("initialize new reward with mint".padEnd(40) + ": "),
+        colors.yellow(rewardMint.toString()),
         "\n",
       );
 
@@ -1515,11 +1515,11 @@ async function topupRewardAmountNecessary(
     mode !== "multisig" &&
       console.log(
         "Change for farm: ",
-        clc.yellow(
+        colors.yellow(
           farmConfig.farmPubkey.toString().concat(rewardIndexString).padEnd(65),
         ),
       );
-    mode !== "multisig" && console.log(clc.green(valueStringAfter), "\n");
+    mode !== "multisig" && console.log(colors.green(valueStringAfter), "\n");
 
     if (topUpOnly) {
       const { rewardsAvailableLamports } = getCurrentRewardInfo(
@@ -1754,10 +1754,10 @@ function printDiff(
   mode !== "multisig" &&
     console.log(
       "Change for farm: ",
-      clc.yellow(farmPubkeyString.concat(rewardIndexString).padEnd(65)),
+      colors.yellow(farmPubkeyString.concat(rewardIndexString).padEnd(65)),
     );
-  mode !== "multisig" && console.log(clc.red(valueStringBefore));
-  mode !== "multisig" && console.log(clc.green(valueStringAfter), "\n");
+  mode !== "multisig" && console.log(colors.red(valueStringBefore));
+  mode !== "multisig" && console.log(colors.green(valueStringAfter), "\n");
 }
 
 export function estimateRewardDuration(
