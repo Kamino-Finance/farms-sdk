@@ -519,6 +519,107 @@ export class Farms {
     }
   }
 
+  async getOraclePrices(farmState: FarmState): Promise<OraclePrices | null> {
+    let oraclePrices: OraclePrices | null = null;
+
+    if (!farmState.scopePrices.equals(PublicKey.default)) {
+      oraclePrices = await OraclePrices.fetch(
+        this._connection,
+        farmState.scopePrices,
+      );
+      if (!oraclePrices) {
+        throw new Error("Error fetching oracle prices");
+      }
+    }
+
+    return oraclePrices;
+  }
+
+  filterFarmsForStrategies(
+    farmStates: FarmAndKey[],
+    strategiesToInclude?: PublicKeySet<PublicKey>,
+  ): FarmAndKey[] {
+    if (strategiesToInclude) {
+      return farmStates.filter((farmState) =>
+        strategiesToInclude.contains(farmState.farmState.strategyId),
+      );
+    }
+    return farmStates;
+  }
+
+  filterFarmsForVaults(
+    farmStates: FarmAndKey[],
+    vaultsToInclude?: PublicKeySet<PublicKey>,
+  ): FarmAndKey[] {
+    if (vaultsToInclude) {
+      return farmStates.filter((farmState) =>
+        vaultsToInclude.contains(farmState.farmState.vaultId),
+      );
+    }
+    return farmStates;
+  }
+
+  async getFarmStatesFromUserStates(
+    userStates: UserAndKey[],
+    strategiesToInclude?: PublicKeySet<PublicKey>,
+    vaultsToInclude?: PublicKeySet<PublicKey>,
+  ): Promise<FarmAndKey[]> {
+    const farmPks = new Set<PublicKey>();
+    for (let i = 0; i < userStates.length; i++) {
+      farmPks.add(userStates[i].userState.farmState);
+    }
+    const farmStates = await batchFetch(Array.from(farmPks), (chunk) =>
+      this.getAllFarmStatesByPubkeys(chunk),
+    );
+
+    if (!farmStates) {
+      throw new Error("Error fetching farms");
+    }
+
+    let farmStatesFiltered = this.filterFarmsForStrategies(
+      farmStates,
+      strategiesToInclude,
+    );
+
+    farmStatesFiltered = this.filterFarmsForVaults(
+      farmStatesFiltered,
+      vaultsToInclude,
+    );
+
+    return farmStates;
+  }
+
+  getUserPendingRewards(
+    userState: UserState,
+    farmState: FarmState,
+    timestamp: Decimal,
+    oraclePrices: OraclePrices | null,
+  ): { userPendingRewardAmounts: Array<Decimal>; hasReward: boolean } {
+    // calculate userState pending rewards
+    const userPendingRewardAmounts: Array<Decimal> = [];
+    let hasReward = false;
+
+    for (
+      let indexReward = 0;
+      indexReward < farmState.rewardInfos.length;
+      indexReward++
+    ) {
+      userPendingRewardAmounts[indexReward] = calculatePendingRewards(
+        farmState,
+        userState,
+        indexReward,
+        timestamp,
+        oraclePrices,
+      );
+
+      if (userPendingRewardAmounts[indexReward].gt(0)) {
+        hasReward = true;
+      }
+    }
+
+    return { userPendingRewardAmounts, hasReward };
+  }
+
   async getAllFarmsForUser(
     user: PublicKey,
     timestamp: Decimal,
@@ -527,40 +628,11 @@ export class Farms {
   ): Promise<PubkeyHashMap<PublicKey, UserFarm>> {
     const userStates = await this.getAllUserStatesForUser(user);
 
-    const farmPks = new Array<PublicKey>();
-    for (let i = 0; i < userStates.length; i++) {
-      farmPks[i] = userStates[i].userState.farmState;
-    }
-
-    const farmStates = await batchFetch(farmPks, (chunk) =>
-      this.getAllFarmStatesByPubkeys(chunk),
+    const farmStatesFiltered = await this.getFarmStatesFromUserStates(
+      userStates,
+      strategiesToInclude,
+      vaultsToInclude,
     );
-
-    if (!farmStates) {
-      throw new Error("Error fetching farms");
-    }
-
-    let farmStatesFiltered: FarmAndKey[] = [];
-
-    if (strategiesToInclude) {
-      farmStatesFiltered = farmStates.filter((farmStates) => {
-        if (strategiesToInclude.contains(farmStates.farmState.strategyId)) {
-          return true;
-        }
-        return false;
-      });
-    } else {
-      farmStatesFiltered = farmStates;
-    }
-
-    if (vaultsToInclude) {
-      farmStatesFiltered = farmStatesFiltered.filter((farmStates) => {
-        if (vaultsToInclude.contains(farmStates.farmState.vaultId)) {
-          return true;
-        }
-        return false;
-      });
-    }
 
     if (farmStatesFiltered.length === 0) {
       // Return empty if no serializable farm states found
@@ -570,7 +642,6 @@ export class Farms {
     const userFarms = new PubkeyHashMap<PublicKey, UserFarm>();
 
     for (let userState of userStates) {
-      const userPendingRewardAmounts: Decimal[] = [];
       let farmState = farmStatesFiltered.find((farmState) =>
         farmState.key.equals(userState.userState.farmState),
       );
@@ -580,36 +651,15 @@ export class Farms {
         continue;
       }
 
-      let oraclePrices: OraclePrices | null = null;
-      if (!farmState.farmState.scopePrices.equals(PublicKey.default)) {
-        oraclePrices = await OraclePrices.fetch(
-          this._connection,
-          farmState.farmState.scopePrices,
-        );
-        if (!oraclePrices) {
-          throw new Error("Error fetching oracle prices");
-        }
-      }
+      let oraclePrices = await this.getOraclePrices(farmState.farmState);
 
-      let hasReward = false;
-
-      // calculate userState pending rewards
-      for (
-        let indexReward = 0;
-        indexReward < farmState.farmState.rewardInfos.length;
-        indexReward++
-      ) {
-        userPendingRewardAmounts[indexReward] = calculatePendingRewards(
-          farmState.farmState,
+      const { userPendingRewardAmounts, hasReward } =
+        this.getUserPendingRewards(
           userState.userState,
-          indexReward,
+          farmState.farmState,
           timestamp,
           oraclePrices,
         );
-        if (userPendingRewardAmounts[indexReward].gt(0)) {
-          hasReward = true;
-        }
-      }
 
       // add new userFarm state if non empty (has rewards or stake) and not already present
       if (!userFarms.has(userState.userState.farmState)) {
@@ -652,35 +702,149 @@ export class Farms {
           ) ||
           hasReward
         ) {
+          // active stake by delegatee
+          userFarm.activeStakeByDelegatee.set(
+            userState.userState.delegatee,
+            lamportsToCollDecimal(
+              new Decimal(scaleDownWads(userState.userState.activeStakeScaled)),
+              farmState.farmState.token.decimals.toNumber(),
+            ),
+          );
+
+          // pendingDepositStake by delegatee
+          userFarm.pendingDepositStakeByDelegatee.set(
+            userState.userState.delegatee,
+            new Decimal(
+              scaleDownWads(userState.userState.pendingDepositStakeScaled),
+            ),
+          );
+
+          // pendingWithdrawalUnstake by delegatee
+          userFarm.pendingWithdrawalUnstakeByDelegatee.set(
+            userState.userState.delegatee,
+            new Decimal(
+              scaleDownWads(userState.userState.pendingWithdrawalUnstakeScaled),
+            ),
+          );
+
+          // cumulating rewards
+          for (
+            let indexReward = 0;
+            indexReward < farmState.farmState.rewardInfos.length;
+            indexReward++
+          ) {
+            userFarm.pendingRewards[indexReward].rewardTokenMint =
+              farmState.farmState.rewardInfos[indexReward].token.mint;
+
+            userFarm.pendingRewards[indexReward].cumulatedPendingRewards =
+              userFarm.pendingRewards[indexReward].cumulatedPendingRewards.add(
+                userPendingRewardAmounts[indexReward],
+              );
+
+            userFarm.pendingRewards[indexReward].pendingRewardsByDelegatee.set(
+              userState.userState.delegatee,
+              userPendingRewardAmounts[indexReward],
+            );
+          }
+
+          // set updated userFarm
           userFarms.set(userState.userState.farmState, userFarm);
         } else {
           // skip as we are not accounting for empty userFarms
           continue;
         }
       }
+    }
 
-      // add new userFarm state if non empty (has rewards or stake) and not already present
-      const refUserFarm = userFarms.get(userState.userState.farmState);
+    return userFarms;
+  }
 
-      if (!refUserFarm) {
-        throw new Error("User farm state not loaded properly ");
-      }
+  async getAllFarmsForUserMultiState(
+    user: PublicKey,
+    timestamp: Decimal,
+    strategiesToInclude?: PublicKeySet<PublicKey>,
+    vaultsToInclude?: PublicKeySet<PublicKey>,
+  ): Promise<PubkeyHashMap<PublicKey, UserFarm[]>> {
+    const userStates = await this.getAllUserStatesForUser(user);
 
-      const updatedUserFarm = { ...refUserFarm };
+    const farmStatesFiltered = await this.getFarmStatesFromUserStates(
+      userStates,
+      strategiesToInclude,
+      vaultsToInclude,
+    );
 
-      if (
-        updatedUserFarm.activeStakeByDelegatee.has(
-          userState.userState.delegatee,
-        )
-      ) {
-        console.error(
-          "Delegatee for user for farm already present. There should be only one delegatee for this user for this farm",
-        );
+    if (farmStatesFiltered.length === 0) {
+      // Return empty if no serializable farm states found
+      return new PubkeyHashMap<PublicKey, UserFarm[]>();
+    }
+
+    const userFarmsByFarm = new PubkeyHashMap<PublicKey, UserFarm[]>();
+
+    for (let userState of userStates) {
+      let farmState = farmStatesFiltered.find((farmState) =>
+        farmState.key.equals(userState.userState.farmState),
+      );
+
+      if (!farmState) {
+        // Skip farms that are not serializable anymore
         continue;
       }
 
+      let oraclePrices = await this.getOraclePrices(farmState.farmState);
+
+      const { userPendingRewardAmounts, hasReward } =
+        this.getUserPendingRewards(
+          userState.userState,
+          farmState.farmState,
+          timestamp,
+          oraclePrices,
+        );
+
+      // Only add if there's a reward or active stake
+      if (
+        !new Decimal(scaleDownWads(userState.userState.activeStakeScaled)).gt(
+          0,
+        ) &&
+        !hasReward
+      ) {
+        continue;
+      }
+
+      // Create a new UserFarm instance
+      const userFarm: UserFarm = {
+        userStateAddress: userState.key,
+        farm: userState.userState.farmState,
+        strategyId: farmState.farmState.strategyId,
+        delegateAuthority: farmState.farmState.delegateAuthority,
+        stakedToken: farmState.farmState.token.mint,
+        userState: userState.userState,
+        activeStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
+        pendingDepositStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
+        pendingWithdrawalUnstakeByDelegatee: new PubkeyHashMap<
+          PublicKey,
+          Decimal
+        >(),
+        pendingRewards: new Array(farmState.farmState.rewardInfos.length)
+          .fill(undefined)
+          .map(function (value, index) {
+            return {
+              rewardTokenMint:
+                farmState!.farmState.rewardInfos[index].token.mint,
+              rewardTokenProgramId:
+                farmState!.farmState.rewardInfos[index].token.tokenProgram,
+              rewardType:
+                farmState?.farmState.rewardInfos[index].rewardType || 0,
+              cumulatedPendingRewards: new Decimal(0),
+              pendingRewardsByDelegatee: new PubkeyHashMap<
+                PublicKey,
+                Decimal
+              >(),
+            };
+          }),
+      };
+
       // active stake by delegatee
-      updatedUserFarm.activeStakeByDelegatee.set(
+      userFarm.activeStakeByDelegatee.set(
         userState.userState.delegatee,
         lamportsToCollDecimal(
           new Decimal(scaleDownWads(userState.userState.activeStakeScaled)),
@@ -689,7 +853,7 @@ export class Farms {
       );
 
       // pendingDepositStake by delegatee
-      updatedUserFarm.pendingDepositStakeByDelegatee.set(
+      userFarm.pendingDepositStakeByDelegatee.set(
         userState.userState.delegatee,
         new Decimal(
           scaleDownWads(userState.userState.pendingDepositStakeScaled),
@@ -697,40 +861,40 @@ export class Farms {
       );
 
       // pendingWithdrawalUnstake by delegatee
-      updatedUserFarm.pendingWithdrawalUnstakeByDelegatee.set(
+      userFarm.pendingWithdrawalUnstakeByDelegatee.set(
         userState.userState.delegatee,
         new Decimal(
           scaleDownWads(userState.userState.pendingWithdrawalUnstakeScaled),
         ),
       );
 
-      // cummulating rewards
+      // cumulating rewards
       for (
         let indexReward = 0;
         indexReward < farmState.farmState.rewardInfos.length;
         indexReward++
       ) {
-        updatedUserFarm.pendingRewards[indexReward].rewardTokenMint =
+        userFarm.pendingRewards[indexReward].rewardTokenMint =
           farmState.farmState.rewardInfos[indexReward].token.mint;
 
-        updatedUserFarm.pendingRewards[indexReward].cumulatedPendingRewards =
-          updatedUserFarm.pendingRewards[
-            indexReward
-          ].cumulatedPendingRewards.add(userPendingRewardAmounts[indexReward]);
+        userFarm.pendingRewards[indexReward].cumulatedPendingRewards =
+          userPendingRewardAmounts[indexReward];
 
-        updatedUserFarm.pendingRewards[
-          indexReward
-        ].pendingRewardsByDelegatee.set(
+        userFarm.pendingRewards[indexReward].pendingRewardsByDelegatee.set(
           userState.userState.delegatee,
           userPendingRewardAmounts[indexReward],
         );
       }
 
-      // set updated userFarm
-      userFarms.set(userState.userState.farmState, updatedUserFarm);
+      // Add the userFarm to the array for the corresponding farm
+      if (!userFarmsByFarm.has(userState.userState.farmState)) {
+        userFarmsByFarm.set(userState.userState.farmState, [userFarm]);
+      } else {
+        userFarmsByFarm.get(userState.userState.farmState)!.push(userFarm);
+      }
     }
 
-    return userFarms;
+    return userFarmsByFarm;
   }
 
   async getUserStateKeyForUndelegatedFarm(
