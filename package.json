@@ -8,7 +8,7 @@
     "dist",
     "src/**/*.ts"
   ],
-  "version": "2.4.3",
+  "version": "3.0.0",
   "scripts": {
     "build": "yarn tsc",
     "build:test": "yarn tsc --project ./tests/tsconfig.json",
@@ -41,15 +41,15 @@
     "@kamino-finance/klend-sdk": "^5.10.32",
     "@kamino-finance/kliquidity-sdk": "^8.0.0",
     "@kamino-finance/scope-sdk": "^9.0.0",
-    "@solana/compat": "^2.1.0",
-    "@solana/kit": "^2.1.0",
-    "@solana/sysvars": "^2.1.0",
-    "@solana/web3.js": "^1.98.0",
     "@solana-program/address-lookup-table": "^0.7.0",
     "@solana-program/compute-budget": "^0.7.0",
     "@solana-program/system": "^0.7.0",
     "@solana-program/token": "^0.5.1",
     "@solana-program/token-2022": "^0.4.0",
+    "@solana/compat": "^2.1.0",
+    "@solana/kit": "^2.1.0",
+    "@solana/sysvars": "^2.1.0",
+    "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.1",
     "decimal.js": "^10.4.3"
   },
