@@ -1,90 +1,79 @@
-import { AnchorProvider, BN, Provider } from "@coral-xyz/anchor";
-
-// @ts-ignore
-import { binary_to_base58 } from "base58-js";
-
+import BN from "bn.js";
 import {
-  Connection,
-  GetProgramAccountsFilter,
-  PublicKey,
-  sendAndConfirmTransaction,
-  Signer,
-  Transaction,
-  TransactionInstruction,
-  TransactionSignature,
-} from "@solana/web3.js";
+  Address,
+  address,
+  GetProgramAccountsDatasizeFilter,
+  GetProgramAccountsMemcmpFilter,
+  IInstruction,
+  Lamports,
+  none,
+  Option,
+  Rpc,
+  Slot,
+  SolanaRpcApi,
+  some,
+  TransactionSigner,
+  UnixTimestamp,
+} from "@solana/kit";
 import {
   calculateCurrentRewardPerToken,
   calculateNewRewardToBeIssued,
   calculatePendingRewards,
   checkIfAccountExists,
-  getReadOnlyWallet,
+  collToLamportsDecimal,
+  createKeypairRentExemptIx,
+  DEFAULT_PUBLIC_KEY,
+  getFarmAuthorityPDA,
+  getFarmVaultPDA,
+  getRewardVaultPDA,
+  getTreasuryAuthorityPDA,
+  getTreasuryVaultPDA,
+  getUserStatePDA,
+  GlobalConfigFlagValueType,
+  lamportsToCollDecimal,
+  scaleDownWads,
   scopePriceForFarm,
   SIZE_FARM_STATE,
   SIZE_GLOBAL_CONFIG,
 } from "./utils";
-import {
-  getTreasuryVaultPDA,
-  getUserStatePDA,
-  collToLamportsDecimal,
-  getFarmVaultPDA,
-  getFarmAuthorityPDA,
-  getRewardVaultPDA,
-  lamportsToCollDecimal,
-  getTreasuryAuthorityPDA,
-  createKeypairRentExemptIx,
-  scaleDownWads,
-  createAddExtraComputeUnitsTransaction,
-} from "./utils";
-import { UserState } from "./rpc_client/accounts";
-import { UserFarm } from "./models";
-import { FarmState, GlobalConfig } from "./rpc_client/accounts";
+import { FarmState, GlobalConfig, UserState } from "./@codegen/farms/accounts";
+import { FarmAndKey, UserAndKey, UserFarm } from "./models";
 import * as farmOperations from "./utils/operations";
 import Decimal from "decimal.js";
-import { Keypair, VersionedTransaction } from "@solana/web3.js";
 import {
-  GlobalConfigOptionKind,
-  FarmConfigOptionKind,
-  TimeUnit,
-  LockingMode,
-  RewardType,
-  RewardInfo,
   FarmConfigOption,
-} from "./rpc_client/types/index";
-import { FarmAndKey, UserAndKey } from "./models";
-import { PROGRAM_ID } from "./rpc_client/programId";
-import { OraclePrices } from "@kamino-finance/scope-sdk";
+  FarmConfigOptionKind,
+  GlobalConfigOptionKind,
+  LockingMode,
+  RewardInfo,
+  RewardType,
+  TimeUnit,
+} from "./@codegen/farms/types/index";
+import { PROGRAM_ID } from "./@codegen/farms/programId";
+import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
 import { chunks } from "./utils/arrayUtils";
 import {
   KaminoMarket,
   lamportsToNumberDecimal,
   Position,
-  PubkeyHashMap,
-  PublicKeySet,
   U64_MAX,
 } from "@kamino-finance/klend-sdk";
-import { createAddExtraComputeUnitFeeTransaction } from "./commands/utils";
-import {
-  signSendAndConfirmRawTransactionWithRetry,
-  Web3Client,
-} from "./utils/sendTransactionsUtils";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { batchFetch } from "./utils/batch";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddress,
 } from "./utils/token";
-
-export const farmsId = new PublicKey(
-  "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr",
-);
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { toLegacyPublicKey } from "./utils/compat";
+import { fromLegacyPublicKey } from "@solana/compat";
+import { getScopePricesFromFarm } from "./utils/option";
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
   currentBoost: Decimal;
   currentPointsPerDay: Decimal;
-  perPositionBoost: PubkeyHashMap<PublicKey, Decimal>;
-  perPositionPointsPerDay: PubkeyHashMap<PublicKey, Decimal>;
+  perPositionBoost: Map<Address, Decimal>;
+  perPositionPointsPerDay: Map<Address, Decimal>;
 }
 
 export interface RewardCurvePoint {
@@ -93,16 +82,15 @@ export interface RewardCurvePoint {
 }
 
 export class Farms {
-  private readonly _connection: Connection;
-  private readonly _provider: Provider;
-  private readonly _farmsProgramId: PublicKey;
+  private readonly _connection: Rpc<SolanaRpcApi>;
+  private readonly _farmsProgramId: Address;
 
-  constructor(connection: Connection) {
+  constructor(
+    connection: Rpc<SolanaRpcApi>,
+    farmsProgramId: Address = PROGRAM_ID,
+  ) {
     this._connection = connection;
-    this._provider = new AnchorProvider(connection, getReadOnlyWallet(), {
-      commitment: connection.commitment,
-    });
-    this._farmsProgramId = farmsId;
+    this._farmsProgramId = farmsProgramId;
   }
 
   getConnection() {
@@ -113,27 +101,34 @@ export class Farms {
     return this._farmsProgramId;
   }
 
-  async getAllUserStatesForUser(user: PublicKey): Promise<Array<UserAndKey>> {
-    let filters: GetProgramAccountsFilter[] = [];
+  async getAllUserStatesForUser(user: Address): Promise<Array<UserAndKey>> {
+    let filters: (
+      | GetProgramAccountsDatasizeFilter
+      | GetProgramAccountsMemcmpFilter
+    )[] = [];
 
     filters.push({
       memcmp: {
-        bytes: user.toBase58(),
-        offset: 48,
+        bytes: user,
+        offset: 48n,
+        encoding: "base58",
       },
     });
 
     filters.push({
-      dataSize: UserState.layout.span + 8,
+      dataSize: BigInt(UserState.layout.span + 8),
     });
 
     return (
-      await this._connection.getProgramAccounts(this._farmsProgramId, {
-        filters,
-      })
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters,
+          encoding: "base64",
+        })
+        .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(x.account.data),
+        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
         key: x.pubkey,
       };
       return userAndKey;
@@ -142,16 +137,19 @@ export class Farms {
 
   async getAllUserStates(): Promise<UserAndKey[]> {
     return (
-      await this._connection.getProgramAccounts(this._farmsProgramId, {
-        filters: [
-          {
-            dataSize: UserState.layout.span + 8,
-          },
-        ],
-      })
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters: [
+            {
+              dataSize: BigInt(UserState.layout.span + 8),
+            },
+          ],
+          encoding: "base64",
+        })
+        .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(x.account.data),
+        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
         key: x.pubkey,
       };
       return userAndKey;
@@ -162,22 +160,26 @@ export class Farms {
     isFarmDelegated: boolean,
   ): Promise<UserAndKey[]> {
     return (
-      await this._connection.getProgramAccounts(this._farmsProgramId, {
-        filters: [
-          {
-            dataSize: UserState.layout.span + 8,
-          },
-          {
-            memcmp: {
-              offset: 80,
-              bytes: isFarmDelegated ? "2" : "1",
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters: [
+            {
+              dataSize: BigInt(UserState.layout.span + 8),
             },
-          },
-        ],
-      })
+            {
+              memcmp: {
+                offset: 80n,
+                bytes: isFarmDelegated ? "2" : "1",
+                encoding: "base58",
+              },
+            },
+          ],
+          encoding: "base64",
+        })
+        .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(x.account.data),
+        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
         key: x.pubkey,
       };
       return userAndKey;
@@ -193,41 +195,42 @@ export class Farms {
    * }
    */
   async *batchGetAllUserStates(): AsyncGenerator<UserAndKey[], void, unknown> {
-    const userStatePubkeys = await this._connection.getProgramAccounts(
-      this._farmsProgramId,
-      {
+    const userStatePubkeys = await this._connection
+      .getProgramAccounts(this._farmsProgramId, {
         filters: [
           {
-            dataSize: UserState.layout.span + 8,
+            dataSize: BigInt(UserState.layout.span + 8),
           },
         ],
         dataSlice: {
           offset: 0,
           length: 0,
         },
-      },
-    );
+        encoding: "base64",
+      })
+      .send();
 
     for (const batch of chunks(
       userStatePubkeys.map((x) => x.pubkey),
       100,
     )) {
-      const userStateAccounts =
-        await this._connection.getMultipleAccountsInfo(batch);
+      const userStateAccounts = await this._connection
+        .getMultipleAccounts(batch)
+        .send();
       const userStateBatch: UserAndKey[] = [];
-      for (let i = 0; i < userStateAccounts.length; i++) {
-        const userState = userStateAccounts[i];
+      for (let i = 0; i < userStateAccounts.value.length; i++) {
+        const userState = userStateAccounts.value[i];
         const pubkey = batch[i];
         if (userState === null) {
           continue;
         }
 
-        const userStateAccount = UserState.decode(userState.data);
+        const userStateAccount = UserState.decode(
+          Buffer.from(userState.data[0], "base64"),
+        );
 
         if (!userStateAccount) {
-          throw Error(
-            `Could not decode user state account ${pubkey.toString()}`,
-          );
+          throw Error(`Could not decode user state account ${pubkey}`);
         }
 
         userStateBatch.push({ key: pubkey, userState: userStateAccount });
@@ -236,51 +239,62 @@ export class Farms {
     }
   }
 
-  async getAllUserStatesForFarm(farm: PublicKey): Promise<UserAndKey[]> {
+  async getAllUserStatesForFarm(farm: Address): Promise<UserAndKey[]> {
     return (
-      await this._connection.getProgramAccounts(this._farmsProgramId, {
-        filters: [
-          {
-            dataSize: UserState.layout.span + 8,
-          },
-          {
-            memcmp: {
-              offset: 8 + 8,
-              bytes: farm.toBase58(),
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters: [
+            {
+              dataSize: BigInt(UserState.layout.span + 8),
             },
-          },
-        ],
-      })
+            {
+              memcmp: {
+                offset: 8n + 8n,
+                bytes: farm,
+                encoding: "base58",
+              },
+            },
+          ],
+          encoding: "base64",
+        })
+        .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(x.account.data),
+        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
         key: x.pubkey,
       };
       return userAndKey;
     });
   }
 
-  async getFarmsForMint(mint: PublicKey): Promise<Array<FarmAndKey>> {
-    let filters: GetProgramAccountsFilter[] = [];
+  async getFarmsForMint(mint: Address): Promise<Array<FarmAndKey>> {
+    let filters: (
+      | GetProgramAccountsDatasizeFilter
+      | GetProgramAccountsMemcmpFilter
+    )[] = [];
 
     filters.push({
       memcmp: {
-        bytes: mint.toBase58(),
-        offset: 72,
+        bytes: mint,
+        offset: 72n,
+        encoding: "base58",
       },
     });
 
     filters.push({
-      dataSize: FarmState.layout.span + 8,
+      dataSize: BigInt(FarmState.layout.span + 8),
     });
 
     return (
-      await this._connection.getProgramAccounts(this._farmsProgramId, {
-        filters,
-      })
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters,
+          encoding: "base64",
+        })
+        .send()
     ).map((x) => {
       const farmAndKey: FarmAndKey = {
-        farmState: FarmState.decode(x.account.data),
+        farmState: FarmState.decode(Buffer.from(x.account.data[0], "base64")),
         key: x.pubkey,
       };
       return farmAndKey;
@@ -289,18 +303,23 @@ export class Farms {
 
   async getAllFarmStates(): Promise<FarmAndKey[]> {
     return (
-      await this._connection.getProgramAccounts(this._farmsProgramId, {
-        filters: [
-          {
-            dataSize: FarmState.layout.span + 8,
-          },
-        ],
-      })
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters: [
+            {
+              dataSize: BigInt(FarmState.layout.span + 8),
+            },
+          ],
+          encoding: "base64",
+        })
+        .send()
     )
       .map((x) => {
         try {
           const farmAndKey: FarmAndKey = {
-            farmState: FarmState.decode(x.account.data),
+            farmState: FarmState.decode(
+              Buffer.from(x.account.data[0], "base64"),
+            ),
             key: x.pubkey,
           };
 
@@ -312,11 +331,12 @@ export class Farms {
       .filter((x) => x !== null) as FarmAndKey[];
   }
 
-  async getAllFarmStatesByPubkeys(keys: PublicKey[]): Promise<FarmAndKey[]> {
+  async getAllFarmStatesByPubkeys(keys: Address[]): Promise<FarmAndKey[]> {
     const farmAndKeys: FarmAndKey[] = [];
 
-    const farmStates = await batchFetch(keys, (chunk) =>
-      this.fetchMultipleFarmStatesWithCheckedSize(chunk),
+    const farmStates = await batchFetch(
+      keys,
+      async (chunk) => await this.fetchMultipleFarmStatesWithCheckedSize(chunk),
     );
 
     farmStates.forEach((farmState, index) => {
@@ -332,13 +352,13 @@ export class Farms {
   }
 
   async getStakedAmountForMintForFarm(
-    mint: PublicKey,
-    farm: PublicKey,
+    mint: Address,
+    farm: Address,
   ): Promise<Decimal> {
     const farms = await this.getFarmsForMint(mint);
 
     for (let index = 0; index < farms.length; index++) {
-      if (farms[index].key.equals(farm)) {
+      if (farms[index].key === farm) {
         return lamportsToCollDecimal(
           new Decimal(
             scaleDownWads(farms[index].farmState.totalActiveStakeScaled),
@@ -350,7 +370,7 @@ export class Farms {
     throw Error("No Farm found");
   }
 
-  async getStakedAmountForMint(mint: PublicKey): Promise<Decimal> {
+  async getStakedAmountForMint(mint: Address): Promise<Decimal> {
     const farms = await this.getFarmsForMint(mint);
 
     let totalStaked = new Decimal(0);
@@ -367,15 +387,19 @@ export class Farms {
   }
 
   async getLockupDurationAndExpiry(
-    farm: PublicKey,
-    user: PublicKey,
+    farm: Address,
+    user: Address,
     timestampNow: number,
   ): Promise<{
     lockupRemainingDuration: number;
     farmLockupOriginalDuration: number;
     farmLockupExpiry: number;
   }> {
-    let userStateAddress = getUserStatePDA(this._farmsProgramId, farm, user);
+    let userStateAddress = await getUserStatePDA(
+      this._farmsProgramId,
+      farm,
+      user,
+    );
 
     let userState = await UserState.fetch(this._connection, userStateAddress);
 
@@ -454,9 +478,9 @@ export class Farms {
   }
 
   async getUserStateKeysForDelegatedFarm(
-    user: PublicKey,
-    farm: PublicKey,
-    delegatees?: PublicKey[],
+    user: Address,
+    farm: Address,
+    delegatees?: Address[],
   ): Promise<Array<UserAndKey>> {
     if (delegatees) {
       return this.getUserStateKeysForDelegatedFarmDeterministic(
@@ -469,7 +493,7 @@ export class Farms {
     const userStateKeysForFarm: UserAndKey[] = [];
 
     for (let index = 0; index < userStates.length; index++) {
-      if (userStates[index].userState.farmState.equals(farm)) {
+      if (userStates[index].userState.farmState === farm) {
         userStateKeysForFarm.push(userStates[index]);
       }
     }
@@ -482,21 +506,17 @@ export class Farms {
   }
 
   async getUserStateKeysForDelegatedFarmDeterministic(
-    user: PublicKey,
-    farm: PublicKey,
-    delegatees: PublicKey[],
+    user: Address,
+    farm: Address,
+    delegatees: Address[],
   ): Promise<Array<UserAndKey>> {
-    const userStateAddresses: PublicKey[] = [];
+    const userStateAddresses: Address[] = [];
     const userStateKeysForFarm: UserAndKey[] = [];
-    delegatees.forEach((delegatee) => {
-      const userStateAddress = getUserStatePDA(
-        this._farmsProgramId,
-        farm,
-        delegatee,
-      );
-
-      userStateAddresses.push(userStateAddress);
-    });
+    await Promise.all(
+      delegatees.map(async (delegate) => {
+        return await getUserStatePDA(this._farmsProgramId, farm, delegate);
+      }),
+    );
 
     const userStates = await UserState.fetchMultiple(
       this._connection,
@@ -504,7 +524,7 @@ export class Farms {
     );
 
     userStates.forEach((userState, index) => {
-      if (userState && userState.farmState.equals(farm)) {
+      if (userState && userState.farmState === farm) {
         userStateKeysForFarm.push({
           key: userStateAddresses[index],
           userState: userState,
@@ -522,7 +542,7 @@ export class Farms {
   async getOraclePrices(farmState: FarmState): Promise<OraclePrices | null> {
     let oraclePrices: OraclePrices | null = null;
 
-    if (!farmState.scopePrices.equals(PublicKey.default)) {
+    if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
       oraclePrices = await OraclePrices.fetch(
         this._connection,
         farmState.scopePrices,
@@ -537,11 +557,11 @@ export class Farms {
 
   filterFarmsForStrategies(
     farmStates: FarmAndKey[],
-    strategiesToInclude?: PublicKeySet<PublicKey>,
+    strategiesToInclude?: Set<Address>,
   ): FarmAndKey[] {
     if (strategiesToInclude) {
       return farmStates.filter((farmState) =>
-        strategiesToInclude.contains(farmState.farmState.strategyId),
+        strategiesToInclude.has(farmState.farmState.strategyId),
       );
     }
     return farmStates;
@@ -549,11 +569,11 @@ export class Farms {
 
   filterFarmsForVaults(
     farmStates: FarmAndKey[],
-    vaultsToInclude?: PublicKeySet<PublicKey>,
+    vaultsToInclude?: Set<Address>,
   ): FarmAndKey[] {
     if (vaultsToInclude) {
       return farmStates.filter((farmState) =>
-        vaultsToInclude.contains(farmState.farmState.vaultId),
+        vaultsToInclude.has(farmState.farmState.vaultId),
       );
     }
     return farmStates;
@@ -561,15 +581,16 @@ export class Farms {
 
   async getFarmStatesFromUserStates(
     userStates: UserAndKey[],
-    strategiesToInclude?: PublicKeySet<PublicKey>,
-    vaultsToInclude?: PublicKeySet<PublicKey>,
+    strategiesToInclude?: Set<Address>,
+    vaultsToInclude?: Set<Address>,
   ): Promise<FarmAndKey[]> {
-    const farmPks = new Set<PublicKey>();
+    const farmPks = new Set<Address>();
     for (let i = 0; i < userStates.length; i++) {
       farmPks.add(userStates[i].userState.farmState);
     }
-    const farmStates = await batchFetch(Array.from(farmPks), (chunk) =>
-      this.getAllFarmStatesByPubkeys(chunk),
+    const farmStates = await batchFetch(
+      Array.from(farmPks),
+      async (chunk) => await this.getAllFarmStatesByPubkeys(chunk),
     );
 
     if (!farmStates) {
@@ -621,11 +642,11 @@ export class Farms {
   }
 
   async getAllFarmsForUser(
-    user: PublicKey,
+    user: Address,
     timestamp: Decimal,
-    strategiesToInclude?: PublicKeySet<PublicKey>,
-    vaultsToInclude?: PublicKeySet<PublicKey>,
-  ): Promise<PubkeyHashMap<PublicKey, UserFarm>> {
+    strategiesToInclude?: Set<Address>,
+    vaultsToInclude?: Set<Address>,
+  ): Promise<Map<Address, UserFarm>> {
     const userStates = await this.getAllUserStatesForUser(user);
 
     const farmStatesFiltered = await this.getFarmStatesFromUserStates(
@@ -636,14 +657,14 @@ export class Farms {
 
     if (farmStatesFiltered.length === 0) {
       // Return empty if no serializable farm states found
-      return new PubkeyHashMap<PublicKey, UserFarm>();
+      return new Map<Address, UserFarm>();
     }
 
-    const userFarms = new PubkeyHashMap<PublicKey, UserFarm>();
+    const userFarms = new Map<Address, UserFarm>();
 
     for (let userState of userStates) {
-      let farmState = farmStatesFiltered.find((farmState) =>
-        farmState.key.equals(userState.userState.farmState),
+      let farmState = farmStatesFiltered.find(
+        (farmState) => farmState.key === userState.userState.farmState,
       );
 
       if (!farmState) {
@@ -670,29 +691,20 @@ export class Farms {
           delegateAuthority: farmState.farmState.delegateAuthority,
           stakedToken: farmState.farmState.token.mint,
           userState: userState.userState,
-          activeStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
-          pendingDepositStakeByDelegatee: new PubkeyHashMap<
-            PublicKey,
-            Decimal
-          >(),
-          pendingWithdrawalUnstakeByDelegatee: new PubkeyHashMap<
-            PublicKey,
-            Decimal
-          >(),
+          activeStakeByDelegatee: new Map<Address, Decimal>(),
+          pendingDepositStakeByDelegatee: new Map<Address, Decimal>(),
+          pendingWithdrawalUnstakeByDelegatee: new Map<Address, Decimal>(),
           pendingRewards: new Array(farmState.farmState.rewardInfos.length)
             .fill(undefined)
             .map(function (value, index) {
               return {
-                rewardTokenMint: new PublicKey(0),
+                rewardTokenMint: DEFAULT_PUBLIC_KEY,
                 rewardTokenProgramId:
                   farmState!.farmState.rewardInfos[index].token.tokenProgram,
                 rewardType:
                   farmState?.farmState.rewardInfos[index].rewardType || 0,
                 cumulatedPendingRewards: new Decimal(0),
-                pendingRewardsByDelegatee: new PubkeyHashMap<
-                  PublicKey,
-                  Decimal
-                >(),
+                pendingRewardsByDelegatee: new Map<Address, Decimal>(),
               };
             }),
         };
@@ -760,11 +772,11 @@ export class Farms {
   }
 
   async getAllFarmsForUserMultiState(
-    user: PublicKey,
+    user: Address,
     timestamp: Decimal,
-    strategiesToInclude?: PublicKeySet<PublicKey>,
-    vaultsToInclude?: PublicKeySet<PublicKey>,
-  ): Promise<PubkeyHashMap<PublicKey, UserFarm[]>> {
+    strategiesToInclude?: Set<Address>,
+    vaultsToInclude?: Set<Address>,
+  ): Promise<Map<Address, UserFarm[]>> {
     const userStates = await this.getAllUserStatesForUser(user);
 
     const farmStatesFiltered = await this.getFarmStatesFromUserStates(
@@ -775,14 +787,14 @@ export class Farms {
 
     if (farmStatesFiltered.length === 0) {
       // Return empty if no serializable farm states found
-      return new PubkeyHashMap<PublicKey, UserFarm[]>();
+      return new Map<Address, UserFarm[]>();
     }
 
-    const userFarmsByFarm = new PubkeyHashMap<PublicKey, UserFarm[]>();
+    const userFarmsByFarm = new Map<Address, UserFarm[]>();
 
     for (let userState of userStates) {
-      let farmState = farmStatesFiltered.find((farmState) =>
-        farmState.key.equals(userState.userState.farmState),
+      let farmState = farmStatesFiltered.find(
+        (farmState) => farmState.key === userState.userState.farmState,
       );
 
       if (!farmState) {
@@ -818,12 +830,9 @@ export class Farms {
         delegateAuthority: farmState.farmState.delegateAuthority,
         stakedToken: farmState.farmState.token.mint,
         userState: userState.userState,
-        activeStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
-        pendingDepositStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
-        pendingWithdrawalUnstakeByDelegatee: new PubkeyHashMap<
-          PublicKey,
-          Decimal
-        >(),
+        activeStakeByDelegatee: new Map<Address, Decimal>(),
+        pendingDepositStakeByDelegatee: new Map<Address, Decimal>(),
+        pendingWithdrawalUnstakeByDelegatee: new Map<Address, Decimal>(),
         pendingRewards: new Array(farmState.farmState.rewardInfos.length)
           .fill(undefined)
           .map(function (value, index) {
@@ -835,10 +844,7 @@ export class Farms {
               rewardType:
                 farmState?.farmState.rewardInfos[index].rewardType || 0,
               cumulatedPendingRewards: new Decimal(0),
-              pendingRewardsByDelegatee: new PubkeyHashMap<
-                PublicKey,
-                Decimal
-              >(),
+              pendingRewardsByDelegatee: new Map<Address, Decimal>(),
             };
           }),
       };
@@ -898,10 +904,10 @@ export class Farms {
   }
 
   async getUserStateKeyForUndelegatedFarm(
-    user: PublicKey,
-    farmAddress: PublicKey,
+    user: Address,
+    farmAddress: Address,
   ): Promise<UserAndKey> {
-    const userStateAddress = getUserStatePDA(
+    const userStateAddress = await getUserStatePDA(
       this._farmsProgramId,
       farmAddress,
       user,
@@ -919,8 +925,8 @@ export class Farms {
   }
 
   async getUserTokensInUndelegatedFarm(
-    user: PublicKey,
-    farm: PublicKey,
+    user: Address,
+    farm: Address,
     tokenDecimals: number,
   ): Promise<Decimal> {
     const userState = await this.getUserStateKeyForUndelegatedFarm(user, farm);
@@ -932,8 +938,8 @@ export class Farms {
   }
 
   async getUserForUndelegatedFarm(
-    user: PublicKey,
-    farmAddress: PublicKey,
+    user: Address,
+    farmAddress: Address,
     timestamp: Decimal,
   ): Promise<UserFarm> {
     const farmState = await FarmState.fetch(this._connection, farmAddress);
@@ -941,7 +947,7 @@ export class Farms {
       throw new Error(`Farm not found ${farmAddress.toString()}`);
     }
 
-    const userStateAddress = getUserStatePDA(
+    const userStateAddress = await getUserStatePDA(
       this._farmsProgramId,
       farmAddress,
       user,
@@ -959,22 +965,19 @@ export class Farms {
       strategyId: farmState.strategyId,
       delegateAuthority: farmState.delegateAuthority,
       stakedToken: farmState.token.mint,
-      activeStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
-      pendingDepositStakeByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
-      pendingWithdrawalUnstakeByDelegatee: new PubkeyHashMap<
-        PublicKey,
-        Decimal
-      >(),
+      activeStakeByDelegatee: new Map<Address, Decimal>(),
+      pendingDepositStakeByDelegatee: new Map<Address, Decimal>(),
+      pendingWithdrawalUnstakeByDelegatee: new Map<Address, Decimal>(),
       pendingRewards: new Array(farmState.rewardInfos.length)
         .fill(undefined)
         .map(function (value, index) {
           return {
-            rewardTokenMint: new PublicKey(0),
+            rewardTokenMint: DEFAULT_PUBLIC_KEY,
             rewardTokenProgramId:
               farmState?.rewardInfos[index].token.tokenProgram,
             rewardType: farmState?.rewardInfos[index].rewardType || 0,
             cumulatedPendingRewards: new Decimal(0),
-            pendingRewardsByDelegatee: new PubkeyHashMap<PublicKey, Decimal>(),
+            pendingRewardsByDelegatee: new Map<Address, Decimal>(),
           };
         }),
     };
@@ -1002,7 +1005,7 @@ export class Farms {
 
     // get oraclePrices
     let oraclePrices: OraclePrices | null = null;
-    if (!farmState.scopePrices.equals(PublicKey.default)) {
+    if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
       oraclePrices = await OraclePrices.fetch(
         this._connection,
         farmState.scopePrices,
@@ -1042,62 +1045,13 @@ export class Farms {
     return userFarm;
   }
 
-  async executeTransaction(
-    ix: TransactionInstruction[],
-    signer: Keypair,
-    extraSigners: Signer[] = [],
-    web3Client?: Web3Client,
-    priorityFeeMultiplier: number = 0,
-  ): Promise<TransactionSignature> {
-    const microLamport = 10 ** 6; // 1 lamport
-    const computeUnits = 1_200_000;
-    const microLamportsPrioritizationFee = microLamport / computeUnits;
-
-    const tx = new Transaction();
-    let { blockhash } = await this._connection.getLatestBlockhash();
-    if (priorityFeeMultiplier) {
-      const priorityFeeIxn = createAddExtraComputeUnitFeeTransaction(
-        computeUnits,
-        Math.round(microLamportsPrioritizationFee * priorityFeeMultiplier),
-      );
-      tx.add(...priorityFeeIxn);
-    }
-    tx.recentBlockhash = blockhash;
-    tx.feePayer = signer.publicKey;
-    tx.add(...ix);
-    let sig: TransactionSignature;
-    if (web3Client) {
-      sig = await signSendAndConfirmRawTransactionWithRetry({
-        mainConnection: web3Client.sendConnection,
-        extraConnections: web3Client.sendConnectionsExtra,
-        tx: new VersionedTransaction(tx.compileMessage()),
-        signers: [signer, ...extraSigners],
-        commitment: "confirmed",
-        sendTransactionOptions: {
-          skipPreflight: true,
-          preflightCommitment: "confirmed",
-          maxRetries: 0,
-        },
-      });
-    } else {
-      sig = await sendAndConfirmTransaction(
-        this._connection,
-        tx,
-        [signer, ...extraSigners],
-        { skipPreflight: true, commitment: "confirmed", maxRetries: 0 },
-      );
-    }
-
-    return sig;
-  }
-
-  createNewUserIx(
-    user: PublicKey,
-    farm: PublicKey,
-    authority: PublicKey = user,
-    delegatee: PublicKey = user,
-  ): TransactionInstruction {
-    const userState = getUserStatePDA(this._farmsProgramId, farm, user);
+  async createNewUserIx(
+    authority: TransactionSigner,
+    farm: Address,
+    user: Address = authority.address,
+    delegatee: Address = user,
+  ): Promise<IInstruction> {
+    const userState = await getUserStatePDA(this._farmsProgramId, farm, user);
 
     const ix = farmOperations.initializeUser(
       farm,
@@ -1110,58 +1064,27 @@ export class Farms {
     return ix;
   }
 
-  async createNewUser(
-    user: Keypair,
-    farm: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-    authority: Keypair = user,
-    delegatee: Keypair = user,
-  ): Promise<TransactionSignature> {
-    const ix = this.createNewUserIx(
-      user.publicKey,
-      farm,
-      authority.publicKey,
-      delegatee.publicKey,
-    );
-
-    let sig = await this.executeTransaction(
-      [ix],
-      user,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-    const userState = getUserStatePDA(
-      this._farmsProgramId,
-      farm,
-      user.publicKey,
-    );
-    if (process.env.DEBUG === "true") {
-      console.log("Initialize User: " + userState);
-      console.log("Refresh Farm txn: " + sig.toString());
-    }
-
-    return sig;
-  }
-
-  stakeIx(
-    user: PublicKey,
-    farm: PublicKey,
+  async stakeIx(
+    user: TransactionSigner,
+    farm: Address,
     amountLamports: Decimal,
-    stakeTokenMint: PublicKey,
-    scopePrices: PublicKey,
-  ): TransactionInstruction {
-    const farmVault = getFarmVaultPDA(
+    stakeTokenMint: Address,
+    scopePrices: Option<Address>,
+  ): Promise<IInstruction> {
+    const farmVault = await getFarmVaultPDA(
       this._farmsProgramId,
       farm,
       stakeTokenMint,
     );
-    const userStatePk = getUserStatePDA(this._farmsProgramId, farm, user);
-    const userTokenAta = getAssociatedTokenAddress(
-      user,
+    const userStatePk = await getUserStatePDA(
+      this._farmsProgramId,
+      farm,
+      user.address,
+    );
+    const userTokenAta = await getAssociatedTokenAddress(
+      user.address,
       stakeTokenMint,
-      TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ADDRESS,
     );
 
     const ix = farmOperations.stake(
@@ -1177,108 +1100,50 @@ export class Farms {
     return ix;
   }
 
-  async stake(
-    user: Keypair,
-    farm: PublicKey,
+  async unstakeIx(
+    user: TransactionSigner,
+    farm: Address,
     amountLamports: Decimal,
-    stakeTokenMint: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = this.stakeIx(
-      user.publicKey,
+    scopePrices: Option<Address>,
+  ): Promise<IInstruction> {
+    const userStatePk = await getUserStatePDA(
+      this._farmsProgramId,
       farm,
-      amountLamports,
-      stakeTokenMint,
-      PROGRAM_ID,
+      user.address,
     );
-
-    let increaseComputeIx = createAddExtraComputeUnitsTransaction(
-      user.publicKey,
-      400_000,
-    );
-
-    let sig = await this.executeTransaction(
-      [increaseComputeIx, ix],
-      user,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log("User " + " stake " + amountLamports);
-      console.log("Stake txn: " + sig.toString());
-    }
-
-    return sig;
-  }
-
-  unstakeIx(
-    user: PublicKey,
-    farm: PublicKey,
-    amountLamports: string,
-    scopePrices: PublicKey,
-  ): TransactionInstruction {
-    const userStatePk = getUserStatePDA(this._farmsProgramId, farm, user);
 
     const ix = farmOperations.unstake(
       user,
       userStatePk,
       farm,
       scopePrices,
-      new BN(amountLamports),
+      new BN(amountLamports.toString()),
     );
     return ix;
   }
 
-  async unstake(
-    user: Keypair,
-    farm: PublicKey,
-    sharesAmount: string,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = this.unstakeIx(user.publicKey, farm, sharesAmount, PROGRAM_ID);
-
-    let sig = await this.executeTransaction(
-      [ix],
-      user,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log("Unstake " + sharesAmount);
-      console.log("Unstake txn: " + sig.toString());
-    }
-
-    return sig;
-  }
-
-  withdrawUnstakedDepositIx(
-    user: PublicKey,
-    userState: PublicKey,
-    farmState: PublicKey,
-    stakeTokenMint: PublicKey,
-  ): TransactionInstruction {
-    const userTokenAta = getAssociatedTokenAddress(
-      user,
+  async withdrawUnstakedDepositIx(
+    user: TransactionSigner,
+    userState: Address,
+    farmState: Address,
+    stakeTokenMint: Address,
+  ): Promise<IInstruction> {
+    const userTokenAta = await getAssociatedTokenAddress(
+      user.address,
       stakeTokenMint,
-      TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ADDRESS,
     );
-    const farmVault = getFarmVaultPDA(
+    const farmVault = await getFarmVaultPDA(
       this._farmsProgramId,
       farmState,
       stakeTokenMint,
     );
-    const farmVaultsAuthority = getFarmAuthorityPDA(
+    const farmVaultsAuthority = await getFarmAuthorityPDA(
       this._farmsProgramId,
       farmState,
     );
 
-    const ix = farmOperations.withdrawUnstakedDeposit(
+    return farmOperations.withdrawUnstakedDeposit(
       user,
       userState,
       farmState,
@@ -1286,62 +1151,32 @@ export class Farms {
       farmVault,
       farmVaultsAuthority,
     );
-
-    return ix;
-  }
-
-  async withdrawUnstakedDeposit(
-    user: Keypair,
-    farmState: PublicKey,
-    tokenMint: PublicKey,
-    userState: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = this.withdrawUnstakedDepositIx(
-      user.publicKey,
-      userState,
-      farmState,
-      tokenMint,
-    );
-
-    let sig = await this.executeTransaction(
-      [ix],
-      user,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-    if (process.env.DEBUG === "true") {
-      console.log("User " + userState + " withdraw unstaked deposit ");
-      console.log("Withdraw Unstaked Deposit txn: " + sig.toString());
-    }
-
-    return sig;
   }
 
   async claimForUserForFarmRewardIx(
-    user: PublicKey,
-    farm: PublicKey,
-    rewardMint: PublicKey,
+    user: TransactionSigner,
+    farm: Address,
+    rewardMint: Address,
     isDelegated: boolean,
     rewardIndex = -1,
-    delegatees?: PublicKey[],
-  ): Promise<
-    [[PublicKey, TransactionInstruction][], TransactionInstruction[]]
-  > {
-    const ixns: TransactionInstruction[] = [];
-    const ataIxns: [PublicKey, TransactionInstruction][] = [];
+    delegatees?: Address[],
+  ): Promise<[[Address, IInstruction][], IInstruction[]]> {
+    const ixns: IInstruction[] = [];
+    const ataIxns: [Address, IInstruction][] = [];
 
     const userStatesAndKeys = isDelegated
-      ? await this.getUserStateKeysForDelegatedFarm(user, farm, delegatees)
-      : [await this.getUserStateKeyForUndelegatedFarm(user, farm)];
+      ? await this.getUserStateKeysForDelegatedFarm(
+          user.address,
+          farm,
+          delegatees,
+        )
+      : [await this.getUserStateKeyForUndelegatedFarm(user.address, farm)];
     const farmState = await FarmState.fetch(this._connection, farm);
     if (!farmState) {
       throw new Error(`Farm not found ${farm.toString()}`);
     }
 
-    const treasuryVault = getTreasuryVaultPDA(
+    const treasuryVault = await getTreasuryVaultPDA(
       this._farmsProgramId,
       farmState.globalConfig,
       rewardMint,
@@ -1349,15 +1184,15 @@ export class Farms {
 
     // find rewardIndex if not defined
     if (rewardIndex === -1) {
-      rewardIndex = farmState.rewardInfos.findIndex((r) =>
-        r.token.mint.equals(rewardMint),
+      rewardIndex = farmState.rewardInfos.findIndex(
+        (r) => r.token.mint === rewardMint,
       );
     }
 
     const rewardsTokenProgram =
       farmState.rewardInfos[rewardIndex].token.tokenProgram;
-    const userRewardAta = getAssociatedTokenAddress(
-      user,
+    const userRewardAta = await getAssociatedTokenAddress(
+      user.address,
       rewardMint,
       rewardsTokenProgram,
     );
@@ -1370,8 +1205,8 @@ export class Farms {
       const [, ix] = await createAssociatedTokenAccountIdempotentInstruction(
         user,
         rewardMint,
-        user,
         rewardsTokenProgram,
+        user.address,
         userRewardAta,
       );
       ataIxns.push([rewardMint, ix]);
@@ -1392,9 +1227,7 @@ export class Farms {
         rewardMint,
         farmState.rewardInfos[rewardIndex].rewardsVault,
         farmState.farmVaultsAuthority,
-        farmState.scopePrices.equals(PublicKey.default)
-          ? PROGRAM_ID
-          : farmState.scopePrices,
+        getScopePricesFromFarm(farmState),
         rewardsTokenProgram,
         rewardIndex,
       );
@@ -1403,55 +1236,24 @@ export class Farms {
     return [ataIxns, ixns];
   }
 
-  async claimForUserForFarmReward(
-    user: Keypair,
-    farm: PublicKey,
-    rewardMint: PublicKey,
-    isDelegated: boolean,
-    rewardIndex = -1,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const [_ataIxns, ixns] = await this.claimForUserForFarmRewardIx(
-      user.publicKey,
-      farm,
-      rewardMint,
-      isDelegated,
-      rewardIndex,
-    );
-
-    let sig = await this.executeTransaction(
-      ixns,
-      user,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log("Harvest reward " + rewardIndex);
-      console.log("HarvestReward txn: " + sig.toString());
-    }
-
-    return sig;
-  }
-
   async claimForUserForFarmAllRewardsIx(
-    user: PublicKey,
-    farm: PublicKey,
+    user: TransactionSigner,
+    farm: Address,
     isDelegated: boolean,
-    delegatees?: PublicKey[],
-  ): Promise<Array<TransactionInstruction>> {
+    delegatees?: Address[],
+  ): Promise<Array<IInstruction>> {
     const farmState = await FarmState.fetch(this._connection, farm);
     const userStatesAndKeys = isDelegated
-      ? await this.getUserStateKeysForDelegatedFarm(user, farm, delegatees)
-      : [await this.getUserStateKeyForUndelegatedFarm(user, farm)];
-    const ixs = new Array<TransactionInstruction>();
+      ? await this.getUserStateKeysForDelegatedFarm(
+          user.address,
+          farm,
+          delegatees,
+        )
+      : [await this.getUserStateKeyForUndelegatedFarm(user.address, farm)];
+    const ixs = new Array<IInstruction>();
     // hardcoded as a hotfix for JTO release;
     // TODO: replace by proper fix
-    const jitoFarm = new PublicKey(
-      "Cik985zLyHYdv5Hs73BUWUcMHMhgfBNwbcCYyvBjV2tt",
-    );
+    const jitoFarm = address("Cik985zLyHYdv5Hs73BUWUcMHMhgfBNwbcCYyvBjV2tt");
 
     if (!farmState) {
       throw new Error(`Farm not found ${farm.toString()}`);
@@ -1468,7 +1270,7 @@ export class Farms {
         rewardIndex++
       ) {
         if (
-          !jitoFarm.equals(farm) &&
+          jitoFarm !== farm &&
           farmState.rewardInfos[rewardIndex].rewardType ==
             RewardType.Constant.discriminator
         ) {
@@ -1479,11 +1281,11 @@ export class Farms {
           farmState.rewardInfos[rewardIndex].token.tokenProgram;
 
         const userRewardAta = await getAssociatedTokenAddress(
-          user,
+          user.address,
           rewardMint,
           rewardTokenProgram,
         );
-        const treasuryVault = getTreasuryVaultPDA(
+        const treasuryVault = await getTreasuryVaultPDA(
           this._farmsProgramId,
           farmState.globalConfig,
           rewardMint,
@@ -1498,8 +1300,8 @@ export class Farms {
             await createAssociatedTokenAccountIdempotentInstruction(
               user,
               rewardMint,
-              user,
               rewardTokenProgram,
+              user.address,
               userRewardAta,
             );
 
@@ -1516,9 +1318,7 @@ export class Farms {
             rewardMint,
             farmState.rewardInfos[rewardIndex].rewardsVault,
             farmState.farmVaultsAuthority,
-            farmState.scopePrices.equals(PublicKey.default)
-              ? PROGRAM_ID
-              : farmState.scopePrices,
+            getScopePricesFromFarm(farmState),
             rewardTokenProgram,
             rewardIndex,
           ),
@@ -1529,82 +1329,21 @@ export class Farms {
     return ixs;
   }
 
-  async claimForUserForFarmAllRewards(
-    user: Keypair,
-    farm: PublicKey,
-    isDelegated: boolean,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<Array<TransactionSignature>> {
-    const ixs = await this.claimForUserForFarmAllRewardsIx(
-      user.publicKey,
-      farm,
-      isDelegated,
-    );
-    const sigs = new Array<TransactionSignature>();
-
-    for (let i = 0; i < ixs.length; i++) {
-      sigs[i] = await this.executeTransaction(
-        [ixs[i]],
-        user,
-        [],
-        web3Client,
-        priorityFeeMultiplier,
-      );
-    }
-
-    return sigs;
-  }
-
   transferOwnershipIx(
-    user: PublicKey,
-    userState: PublicKey,
-    newUser: PublicKey,
-  ): TransactionInstruction {
-    const ix = farmOperations.transferOwnership(user, userState, newUser);
-
-    return ix;
-  }
-
-  async transferOwnership(
-    user: Keypair,
-    userState: PublicKey,
-    newUser: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = this.transferOwnershipIx(user.publicKey, userState, newUser);
-
-    let sig = await this.executeTransaction(
-      [ix],
-      user,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log(
-        "Transfer User " +
-          userState +
-          " ownership from " +
-          user.publicKey +
-          " to " +
-          newUser,
-      );
-      console.log("Transfer User Ownership txn: " + sig.toString());
-    }
-
-    return sig;
+    user: TransactionSigner,
+    userState: Address,
+    newUser: Address,
+  ): IInstruction {
+    return farmOperations.transferOwnership(user, userState, newUser);
   }
 
   async transferOwnershipAllUserStatesIx(
-    user: PublicKey,
-    newUser: PublicKey,
-  ): Promise<Array<TransactionInstruction>> {
-    const userStates = await this.getAllUserStatesForUser(user);
+    user: TransactionSigner,
+    newUser: Address,
+  ): Promise<Array<IInstruction>> {
+    const userStates = await this.getAllUserStatesForUser(user.address);
 
-    const ixs = new Array<TransactionInstruction>();
+    const ixs = new Array<IInstruction>();
     for (let index = 0; index < userStates.length; index++) {
       ixs[index] = farmOperations.transferOwnership(
         user,
@@ -1616,51 +1355,26 @@ export class Farms {
     return ixs;
   }
 
-  async transferOwnershipAllUserStates(
-    user: Keypair,
-    newUser: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<Array<TransactionSignature>> {
-    const ixs = await this.transferOwnershipAllUserStatesIx(
-      user.publicKey,
-      newUser,
-    );
-
-    const sigs = new Array<TransactionSignature>();
-    for (let i = 0; i < ixs.length; i++) {
-      sigs[i] = await this.executeTransaction(
-        [ixs[i]],
-        user,
-        [],
-        web3Client,
-        priorityFeeMultiplier,
-      );
-    }
-
-    return sigs;
-  }
-
-  async createFarmIx(
-    admin: PublicKey,
-    farm: Keypair,
-    globalConfig: PublicKey,
-    stakeTokenMint: PublicKey,
-  ): Promise<TransactionInstruction[]> {
-    const farmVault = getFarmVaultPDA(
+  async createFarmIxs(
+    admin: TransactionSigner,
+    farm: TransactionSigner,
+    globalConfig: Address,
+    stakeTokenMint: Address,
+  ): Promise<IInstruction[]> {
+    const farmVault = await getFarmVaultPDA(
       this._farmsProgramId,
-      farm.publicKey,
+      farm.address,
       stakeTokenMint,
     );
-    const farmVaultAuthority = getFarmAuthorityPDA(
+    const farmVaultAuthority = await getFarmAuthorityPDA(
       this._farmsProgramId,
-      farm.publicKey,
+      farm.address,
     );
 
-    let ixs: TransactionInstruction[] = [];
+    let ixs: IInstruction[] = [];
     ixs.push(
       await createKeypairRentExemptIx(
-        this._provider.connection,
+        this.getConnection(),
         admin,
         farm,
         SIZE_FARM_STATE,
@@ -1672,7 +1386,7 @@ export class Farms {
       farmOperations.initializeFarm(
         globalConfig,
         admin,
-        farm.publicKey,
+        farm.address,
         farmVault,
         farmVaultAuthority,
         stakeTokenMint,
@@ -1682,20 +1396,20 @@ export class Farms {
   }
 
   async createFarmDelegatedIx(
-    admin: PublicKey,
-    farm: Keypair,
-    globalConfig: PublicKey,
-    farmDelegate: PublicKey,
-  ): Promise<TransactionInstruction[]> {
-    const farmVaultAuthority = getFarmAuthorityPDA(
+    admin: TransactionSigner,
+    farm: TransactionSigner,
+    globalConfig: Address,
+    farmDelegate: TransactionSigner,
+  ): Promise<IInstruction[]> {
+    const farmVaultAuthority = await getFarmAuthorityPDA(
       this._farmsProgramId,
-      farm.publicKey,
+      farm.address,
     );
 
-    let ixs: TransactionInstruction[] = [];
+    let ixs: IInstruction[] = [];
     ixs.push(
       await createKeypairRentExemptIx(
-        this._provider.connection,
+        this.getConnection(),
         admin,
         farm,
         SIZE_FARM_STATE,
@@ -1707,7 +1421,7 @@ export class Farms {
       farmOperations.initializeFarmDelegated(
         globalConfig,
         admin,
-        farm.publicKey,
+        farm.address,
         farmVaultAuthority,
         farmDelegate,
       ),
@@ -1715,73 +1429,13 @@ export class Farms {
     return ixs;
   }
 
-  async createFarm(
-    admin: Keypair,
-    globalConfig: PublicKey,
-    farm: Keypair,
-    mint: PublicKey,
-    mode: string = "execute",
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.createFarmIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : admin.publicKey,
-      farm,
-      globalConfig,
-      mint,
-    );
-
-    const log = "Initialize Farm: " + farm.toString();
-
-    return this.processTxn(
-      admin,
-      ix,
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [farm],
-      web3Client,
-    );
-  }
-
-  async createFarmDelegated(
-    admin: Keypair,
-    globalConfig: PublicKey,
-    farm: Keypair,
-    farmDelegate: Keypair,
-    mode: string = "execute",
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ) {
-    let createFarmDelegateIx = await this.createFarmDelegatedIx(
-      admin.publicKey,
-      farm,
-      globalConfig,
-      farmDelegate.publicKey,
-    );
-
-    const log = "Initialize Delegated Farm: " + farm.toString();
-
-    return this.processTxn(
-      admin,
-      createFarmDelegateIx,
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [farm, farmDelegate],
-      web3Client,
-    );
-  }
-
   async addRewardToFarmIx(
-    admin: PublicKey,
-    globalConfig: PublicKey,
-    farm: PublicKey,
-    mint: PublicKey,
-    tokenProgram: PublicKey,
-  ): Promise<TransactionInstruction> {
+    admin: TransactionSigner,
+    globalConfig: Address,
+    farm: Address,
+    mint: Address,
+    tokenProgram: Address,
+  ): Promise<IInstruction> {
     const globalConfigState = await GlobalConfig.fetch(
       this._connection,
       globalConfig,
@@ -1789,14 +1443,21 @@ export class Farms {
     if (!globalConfigState) {
       throw new Error("Could not fetch global config");
     }
-    const treasuryVault = getTreasuryVaultPDA(
+    const treasuryVault = await getTreasuryVaultPDA(
       this._farmsProgramId,
       globalConfig,
       mint,
     );
-    let farmVaultAuthority = getFarmAuthorityPDA(this._farmsProgramId, farm);
+    let farmVaultAuthority = await getFarmAuthorityPDA(
+      this._farmsProgramId,
+      farm,
+    );
 
-    const rewardVault = getRewardVaultPDA(this._farmsProgramId, farm, mint);
+    const rewardVault = await getRewardVaultPDA(
+      this._farmsProgramId,
+      farm,
+      mint,
+    );
 
     const ix = farmOperations.initializeReward(
       globalConfig,
@@ -1812,49 +1473,16 @@ export class Farms {
     return ix;
   }
 
-  async addRewardToFarm(
-    admin: Keypair,
-    globalConfig: PublicKey,
-    farm: PublicKey,
-    mint: PublicKey,
-    tokenProgram: PublicKey,
-    mode: string = "execute",
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.addRewardToFarmIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : admin.publicKey,
-      globalConfig,
-      farm,
-      mint,
-      tokenProgram,
-    );
-
-    const log = "Initialize Reward: " + mint;
-
-    return this.processTxn(
-      admin,
-      [ix],
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [],
-      web3Client,
-    );
-  }
-
   async addRewardAmountToFarmIx(
-    payer: PublicKey,
-    farm: PublicKey,
-    mint: PublicKey,
+    payer: TransactionSigner,
+    farm: Address,
+    mint: Address,
     amount: Decimal,
     rewardIndexOverride: number = -1,
     decimalsOverride: number = -1,
-    tokenProgramOverride: PublicKey = TOKEN_PROGRAM_ID,
-    scopePricesOverride: PublicKey = PROGRAM_ID,
-  ): Promise<TransactionInstruction> {
+    tokenProgramOverride: Address = TOKEN_PROGRAM_ADDRESS,
+    scopePricesOverride: Option<Address> = none(),
+  ): Promise<IInstruction> {
     let decimals = decimalsOverride;
 
     let rewardIndex = rewardIndexOverride;
@@ -1863,18 +1491,14 @@ export class Farms {
     if (rewardIndex == -1) {
       const farmState = await FarmState.fetch(this._connection, farm);
       if (!farmState) {
-        throw new Error(`Could not fetch farm state ${farm.toBase58()}`);
+        throw new Error(`Could not fetch farm state ${farm}`);
       }
-      scopePrices = farmState.scopePrices.equals(PublicKey.default)
-        ? PROGRAM_ID
-        : farmState.scopePrices;
+      scopePrices = getScopePricesFromFarm(farmState);
 
       for (let i = 0; farmState.rewardInfos.length; i++) {
-        if (farmState.rewardInfos[i].token.mint.equals(mint)) {
+        if (farmState.rewardInfos[i].token.mint === mint) {
           if (
-            !farmState.rewardInfos[i].token.tokenProgram.equals(
-              PublicKey.default,
-            )
+            farmState.rewardInfos[i].token.tokenProgram !== DEFAULT_PUBLIC_KEY
           ) {
             tokenProgram = farmState.rewardInfos[i].token.tokenProgram;
           }
@@ -1886,7 +1510,7 @@ export class Farms {
     }
 
     if (decimals == -1) {
-      throw new Error(`Could not find reward token ${mint.toBase58()}`);
+      throw new Error(`Could not find reward token ${mint}`);
     }
 
     let amountLamports = new BN(
@@ -1894,12 +1518,15 @@ export class Farms {
     );
 
     const payerRewardAta = await getAssociatedTokenAddress(
-      payer,
+      payer.address,
       mint,
       tokenProgram,
     );
-    let rewardVault = getRewardVaultPDA(this._farmsProgramId, farm, mint);
-    let farmVaultsAuthority = getFarmAuthorityPDA(this._farmsProgramId, farm);
+    let rewardVault = await getRewardVaultPDA(this._farmsProgramId, farm, mint);
+    let farmVaultsAuthority = await getFarmAuthorityPDA(
+      this._farmsProgramId,
+      farm,
+    );
 
     const ix = farmOperations.addReward(
       payer,
@@ -1917,15 +1544,15 @@ export class Farms {
   }
 
   async withdrawRewardAmountFromFarmIx(
-    payer: PublicKey,
-    farm: PublicKey,
-    mint: PublicKey,
+    payer: TransactionSigner,
+    farm: Address,
+    mint: Address,
     amount: Decimal,
     rewardIndexOverride: number = -1,
     decimalsOverride: number = -1,
-    tokenProgramOverride: PublicKey = TOKEN_PROGRAM_ID,
-    scopePricesOverride: PublicKey = PROGRAM_ID,
-  ): Promise<TransactionInstruction[]> {
+    tokenProgramOverride: Address = TOKEN_PROGRAM_ADDRESS,
+    scopePricesOverride: Option<Address> = none(),
+  ): Promise<IInstruction[]> {
     let decimals = decimalsOverride;
     let tokenProgram = tokenProgramOverride;
 
@@ -1934,14 +1561,12 @@ export class Farms {
     if (rewardIndex == -1) {
       const farmState = await FarmState.fetch(this._connection, farm);
       if (!farmState) {
-        throw new Error(`Could not fetch farm state ${farm.toBase58()}`);
+        throw new Error(`Could not fetch farm state ${farm}`);
       }
-      scopePrices = farmState.scopePrices.equals(PublicKey.default)
-        ? PROGRAM_ID
-        : farmState.scopePrices;
+      scopePrices = getScopePricesFromFarm(farmState);
 
       for (let i = 0; farmState.rewardInfos.length; i++) {
-        if (farmState.rewardInfos[i].token.mint.equals(mint)) {
+        if (farmState.rewardInfos[i].token.mint === mint) {
           rewardIndex = i;
           decimals = farmState.rewardInfos[i].token.decimals.toNumber();
           tokenProgram = farmState.rewardInfos[i].token.tokenProgram;
@@ -1951,22 +1576,25 @@ export class Farms {
     }
 
     if (decimals == -1) {
-      throw new Error(`Could not find reward token ${mint.toBase58()}`);
+      throw new Error(`Could not find reward token ${mint}`);
     }
 
     let amountLamports = new BN(
       collToLamportsDecimal(amount, decimals).floor().toString(),
     );
 
-    let rewardVault = getRewardVaultPDA(this._farmsProgramId, farm, mint);
-    let farmVaultsAuthority = getFarmAuthorityPDA(this._farmsProgramId, farm);
+    let rewardVault = await getRewardVaultPDA(this._farmsProgramId, farm, mint);
+    let farmVaultsAuthority = await getFarmAuthorityPDA(
+      this._farmsProgramId,
+      farm,
+    );
 
     const [payerRewardAta, initAtaIdempotentIx] =
       await createAssociatedTokenAccountIdempotentInstruction(
         payer,
         mint,
-        payer,
         tokenProgram,
+        payer.address,
       );
 
     const ix = farmOperations.withdrawReward(
@@ -1984,61 +1612,30 @@ export class Farms {
     return [initAtaIdempotentIx, ix];
   }
 
-  async addRewardAmountToFarm(
-    payer: Keypair,
-    farm: PublicKey,
-    mint: PublicKey,
-    amount: Decimal,
-    mode: string,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.addRewardAmountToFarmIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : payer.publicKey,
-      farm,
-      mint,
-      amount,
-    );
-
-    const log = "Add Reward: " + mint + " amount: " + amount;
-
-    return this.processTxn(
-      payer,
-      [ix],
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [],
-      web3Client,
-    );
-  }
-
   async updateFarmConfigIx(
-    admin: PublicKey,
-    farm: PublicKey,
-    mint: PublicKey,
+    admin: TransactionSigner,
+    farm: Address,
+    mint: Address,
     mode: FarmConfigOptionKind,
-    value: number | PublicKey | number[] | RewardCurvePoint[] | BN,
+    value: number | Address | number[] | RewardCurvePoint[] | BN,
     rewardIndexOverride: number = -1,
-    scopePricesOverride: PublicKey = PROGRAM_ID,
+    scopePricesOverride: Option<Address> = none(),
     newFarm: boolean = false,
-  ): Promise<TransactionInstruction> {
+  ): Promise<IInstruction> {
     let rewardIndex = rewardIndexOverride;
     let scopePrices = scopePricesOverride;
     if (rewardIndex == -1 && !newFarm) {
       const farmState = await FarmState.fetch(this._connection, farm);
       if (!farmState) {
-        throw new Error(`Could not fetch farm state ${farm.toBase58()}`);
+        throw new Error(`Could not fetch farm state ${farm}`);
       }
 
-      if (!farmState.scopePrices.equals(PublicKey.default)) {
-        scopePrices = farmState.scopePrices;
+      if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
+        scopePrices = some(farmState.scopePrices);
       }
 
       for (let i = 0; farmState.rewardInfos.length; i++) {
-        if (farmState.rewardInfos[i].token.mint.equals(mint)) {
+        if (farmState.rewardInfos[i].token.mint === mint) {
           rewardIndex = i;
           break;
         }
@@ -2056,137 +1653,30 @@ export class Farms {
     return ix;
   }
 
-  async updateFarmConfig(
-    admin: Keypair,
-    farm: PublicKey,
-    mint: PublicKey,
-    updateMode: FarmConfigOptionKind,
-    value: number | PublicKey,
-    mode: string = "execute",
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.updateFarmConfigIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : admin.publicKey,
-      farm,
-      mint,
-      updateMode,
-      value,
-    );
-
-    const log =
-      "Update Reward: " +
-      mint +
-      " mode: " +
-      updateMode.discriminator +
-      " value: " +
-      value;
-
-    return this.processTxn(
-      admin,
-      [ix],
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [],
-      web3Client,
-    );
-  }
-
   async refreshFarmIx(
-    farm: PublicKey,
-    scopePrices: PublicKey,
-  ): Promise<TransactionInstruction> {
-    const ix = farmOperations.refreshFarm(farm, scopePrices);
-
-    return ix;
-  }
-
-  async refreshFarm(
-    payer: Keypair,
-    farm: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const farmState = await FarmState.fetch(this._connection, farm);
-    if (!farmState) {
-      throw new Error(`Could not fetch farm state ${farm.toBase58()}`);
-    }
-
-    const ix = await this.refreshFarmIx(
-      farm,
-      farmState.scopePrices.equals(PublicKey.default)
-        ? PROGRAM_ID
-        : farmState.scopePrices,
-    );
-
-    let sig = await this.executeTransaction(
-      [ix],
-      payer,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log("Refresh Farm: " + farm);
-      console.log("Refresh Farm txn: " + sig.toString());
-    }
-
-    return sig;
+    farm: Address,
+    scopePrices: Option<Address>,
+  ): Promise<IInstruction> {
+    return farmOperations.refreshFarm(farm, scopePrices);
   }
 
   async refreshUserIx(
-    userState: PublicKey,
-    farmState: PublicKey,
-    scopePrices: PublicKey,
-  ): Promise<TransactionInstruction> {
-    const ix = farmOperations.refreshUserState(
-      userState,
-      farmState,
-      scopePrices,
-    );
-
-    return ix;
-  }
-
-  async refreshUser(
-    payer: Keypair,
-    userState: PublicKey,
-    farmState: PublicKey,
-    scopePrices: PublicKey,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.refreshUserIx(userState, farmState, scopePrices);
-
-    let sig = await this.executeTransaction(
-      [ix],
-      payer,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log("Refresh User: " + userState);
-      console.log("Refresh User txn: " + sig.toString());
-    }
-
-    return sig;
+    userState: Address,
+    farmState: Address,
+    scopePrices: Option<Address>,
+  ): Promise<IInstruction> {
+    return farmOperations.refreshUserState(userState, farmState, scopePrices);
   }
 
   async createGlobalConfigIxs(
-    admin: PublicKey,
-    globalConfig: Keypair,
-  ): Promise<TransactionInstruction[]> {
-    let ixs: TransactionInstruction[] = [];
+    admin: TransactionSigner,
+    globalConfig: TransactionSigner,
+  ): Promise<IInstruction[]> {
+    let ixs: IInstruction[] = [];
 
     ixs.push(
       await createKeypairRentExemptIx(
-        this._provider.connection,
+        this.getConnection(),
         admin,
         globalConfig,
         SIZE_GLOBAL_CONFIG,
@@ -2194,15 +1684,15 @@ export class Farms {
       ),
     );
 
-    const treasuryVaultAuthority = getTreasuryAuthorityPDA(
+    const treasuryVaultAuthority = await getTreasuryAuthorityPDA(
       this._farmsProgramId,
-      globalConfig.publicKey,
+      globalConfig.address,
     );
 
     ixs.push(
       farmOperations.initializeGlobalConfig(
         admin,
-        globalConfig.publicKey,
+        globalConfig.address,
         treasuryVaultAuthority,
       ),
     );
@@ -2210,36 +1700,13 @@ export class Farms {
     return ixs;
   }
 
-  async createGlobalConfig(
-    admin: Keypair,
-    globalConfig: Keypair,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.createGlobalConfigIxs(admin.publicKey, globalConfig);
-    const sig = await this.executeTransaction(
-      ix,
-      admin,
-      [globalConfig],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log("Initialize Global Config: " + globalConfig.toString());
-      console.log("Initialize Global Config txn: " + sig.toString());
-    }
-
-    return sig;
-  }
-
   async updateGlobalConfigIx(
-    admin: PublicKey,
-    globalConfig: PublicKey,
+    admin: TransactionSigner,
+    globalConfig: Address,
     mode: GlobalConfigOptionKind,
     flagValue: string,
-    flagValueType: string,
-  ): Promise<TransactionInstruction> {
+    flagValueType: GlobalConfigFlagValueType,
+  ): Promise<IInstruction> {
     const ix = farmOperations.updateGlobalConfig(
       admin,
       globalConfig,
@@ -2252,150 +1719,45 @@ export class Farms {
   }
 
   async updateGlobalConfigAdminIx(
-    admin: PublicKey,
-    globalConfig: PublicKey,
-  ): Promise<TransactionInstruction> {
-    const ix = farmOperations.updateGlobalConfigAdmin(admin, globalConfig);
-
-    return ix;
+    admin: TransactionSigner,
+    globalConfig: Address,
+  ): Promise<IInstruction> {
+    return farmOperations.updateGlobalConfigAdmin(admin, globalConfig);
   }
 
   async updateFarmAdminIx(
-    admin: PublicKey,
-    farm: PublicKey,
-  ): Promise<TransactionInstruction> {
-    const ix = farmOperations.updateFarmAdmin(admin, farm);
-
-    return ix;
-  }
-
-  async updateGlobalConfig(
-    admin: Keypair,
-    globalConfig: PublicKey,
-    updateMode: GlobalConfigOptionKind,
-    flagValue: string,
-    flagValueType: string,
-    mode: string,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.updateGlobalConfigIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : admin.publicKey,
-      globalConfig,
-      updateMode,
-      flagValue,
-      flagValueType,
-    );
-
-    const log =
-      "Update Global Config: " +
-      globalConfig.toString() +
-      " mode: " +
-      updateMode.discriminator +
-      " value: " +
-      flagValue;
-
-    return this.processTxn(
-      admin,
-      [ix],
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [],
-      web3Client,
-    );
-  }
-
-  async updateGlobalConfigAdmin(
-    admin: Keypair,
-    globalConfig: PublicKey,
-    mode: string,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.updateGlobalConfigAdminIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : admin.publicKey,
-      globalConfig,
-    );
-
-    const log =
-      "Update Global Config Admin for: " +
-      globalConfig.toString() +
-      " to admin: " +
-      admin.publicKey;
-
-    return this.processTxn(
-      admin,
-      [ix],
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [],
-      web3Client,
-    );
-  }
-
-  async updateFarmAdmin(
-    admin: Keypair,
-    farm: PublicKey,
-    mode: string,
-    priorityFeeMultiplier: number,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.updateFarmAdminIx(
-      mode === "multisig"
-        ? new PublicKey(process.env.MULTISIG!)
-        : admin.publicKey,
-      farm,
-    );
-
-    const log =
-      "Update Farm Admin for: " +
-      farm.toString() +
-      " to admin: " +
-      admin.publicKey;
-
-    return this.processTxn(
-      admin,
-      [ix],
-      mode,
-      priorityFeeMultiplier,
-      log,
-      [],
-      web3Client,
-    );
+    admin: TransactionSigner,
+    farm: Address,
+  ): Promise<IInstruction> {
+    return farmOperations.updateFarmAdmin(admin, farm);
   }
 
   async withdrawTreasuryIx(
-    admin: PublicKey,
-    globalConfig: PublicKey,
-    rewardMint: PublicKey,
-    rewardTokenProgram: PublicKey,
+    admin: TransactionSigner,
+    globalConfig: Address,
+    rewardMint: Address,
+    rewardTokenProgram: Address,
     amount: BN,
-    withdrawAta?: PublicKey,
-  ): Promise<TransactionInstruction> {
-    const treasuryVault = getTreasuryVaultPDA(
+    withdrawAta?: Address,
+  ): Promise<IInstruction> {
+    const treasuryVault = await getTreasuryVaultPDA(
       this._farmsProgramId,
       globalConfig,
       rewardMint,
     );
-    const treasuryVaultAuthority = getTreasuryAuthorityPDA(
+    const treasuryVaultAuthority = await getTreasuryAuthorityPDA(
       this._farmsProgramId,
       globalConfig,
     );
     if (!withdrawAta) {
       withdrawAta = await getAssociatedTokenAddress(
-        admin,
+        admin.address,
         rewardMint,
         rewardTokenProgram,
       );
     }
 
-    const ix = farmOperations.withdrawTreasury(
+    return farmOperations.withdrawTreasury(
       admin,
       globalConfig,
       treasuryVault,
@@ -2404,58 +1766,14 @@ export class Farms {
       amount,
       rewardMint,
     );
-
-    return ix;
-  }
-
-  async withdrawTreasury(
-    admin: Keypair,
-    globalConfig: PublicKey,
-    rewardMint: PublicKey,
-    rewardTokenProgram: PublicKey,
-    amount: BN,
-    priorityFeeMultiplier: number,
-    withdrawAta?: PublicKey,
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    const ix = await this.withdrawTreasuryIx(
-      admin.publicKey,
-      globalConfig,
-      rewardMint,
-      rewardTokenProgram,
-      amount,
-      withdrawAta,
-    );
-
-    const sig = await this.executeTransaction(
-      [ix],
-      admin,
-      [],
-      web3Client,
-      priorityFeeMultiplier,
-    );
-
-    if (process.env.DEBUG === "true") {
-      console.log(
-        "Admin " +
-          admin.publicKey +
-          " withdraw treasury of " +
-          rewardMint +
-          " an amount of " +
-          amount,
-      );
-      console.log("Withdraw treasury txn: " + sig.toString());
-    }
-
-    return sig;
   }
 
   async updateFarmRpsForRewardIx(
-    payer: PublicKey,
-    rewardMint: PublicKey,
-    farm: PublicKey,
+    payer: TransactionSigner,
+    rewardMint: Address,
+    farm: Address,
     rewardsPerSecond: number,
-  ): Promise<TransactionInstruction> {
+  ): Promise<IInstruction> {
     const farmsClient = new Farms(this._connection);
 
     const farmState = await FarmState.fetch(
@@ -2472,7 +1790,7 @@ export class Farms {
 
     const rewardInfo = farmState.rewardInfos.find((info, index) => {
       rewardIndex = index;
-      return info.token.mint.equals(rewardMint);
+      return info.token.mint === rewardMint;
     });
 
     if (!rewardInfo) {
@@ -2515,17 +1833,15 @@ export class Farms {
   }
 
   async topUpFarmForRewardIx(
-    payer: PublicKey,
-    rewardMint: PublicKey,
-    farm: PublicKey,
+    payer: TransactionSigner,
+    rewardMint: Address,
+    farm: Address,
     amountToTopUp: Decimal,
-  ): Promise<TransactionInstruction> {
-    const farmsClient = new Farms(this._connection);
-
+  ): Promise<IInstruction> {
     const farmState = await FarmState.fetch(
       this._connection,
       farm,
-      farmsClient.getProgramID(),
+      this.getProgramID(),
     );
 
     if (!farmState) {
@@ -2536,7 +1852,7 @@ export class Farms {
 
     const rewardInfo = farmState.rewardInfos.find((info, index) => {
       rewardIndex = index;
-      return info.token.mint.equals(rewardMint);
+      return info.token.mint === rewardMint;
     });
 
     if (!rewardInfo) {
@@ -2548,93 +1864,50 @@ export class Farms {
       farm,
       rewardMint,
       amountToTopUp,
+      rewardIndex,
     );
   }
 
-  async processTxn(
-    admin: Keypair,
-    ixns: TransactionInstruction[],
-    mode: string,
-    priorityFeeMultiplier: number,
-    debugMessage?: string,
-    extraSigners?: Signer[],
-    web3Client?: Web3Client,
-  ): Promise<TransactionSignature> {
-    if (mode === "multisig" || mode === "simulate") {
-      const { blockhash } = await this._connection.getLatestBlockhash();
-      let txn = new Transaction();
-      txn.add(...ixns);
-      txn.recentBlockhash = blockhash;
-      txn.feePayer = admin.publicKey;
-
-      // if simulate is true, always simulate
-      if (mode === "simulate") {
-        await printSimulateTx(this._connection, txn);
-      } else {
-        // if simulate is false (multisig is true)
-        await printMultisigTx(txn);
-      }
-
-      return "";
-    } else if (mode === "execute") {
-      let sig = await this.executeTransaction(
-        ixns,
-        admin,
-        extraSigners,
-        web3Client,
-        priorityFeeMultiplier,
-      );
-
-      if (process.env.DEBUG === "true" && debugMessage) {
-        console.log(debugMessage);
-        console.log("txn: " + sig.toString());
-      }
-
-      return sig;
-    }
-    return "";
-  }
-
   async fetchMultipleFarmStatesWithCheckedSize(
-    keys: PublicKey[],
+    keys: Address[],
   ): Promise<(FarmState | null)[]> {
     // Custom deserialization to avoid fetching non-serializable accounts
-    const farmStateSize = FarmState.layout.span + 8;
-    const infos = await this._connection.getMultipleAccountsInfo(keys);
-    return infos.map((info) => {
+    const farmStateSize = BigInt(FarmState.layout.span + 8);
+    const infos = await this._connection.getMultipleAccounts(keys).send();
+    return infos.value.map((info) => {
       if (info === null) {
         return null;
       }
-      if (info.data.length !== farmStateSize) {
+      if (info.space !== farmStateSize) {
         // check if account matches expected size (deserializable)
         return null;
       }
-      if (!info.owner.equals(this._farmsProgramId)) {
+      if (info.owner !== this._farmsProgramId) {
         throw new Error("account doesn't belong to this program");
       }
 
-      return FarmState.decode(info.data);
+      return FarmState.decode(Buffer.from(info.data[0], "base64"));
     });
   }
 }
 
 export async function getCurrentTimeUnit(
   farm: FarmState,
-  slot: number,
-  timestamp: number,
+  slot: Slot,
+  timestamp: UnixTimestamp,
 ): Promise<Decimal> {
   if (farm.timeUnit == TimeUnit.Seconds.discriminator) {
-    return new Decimal(timestamp!);
+    return new Decimal(timestamp.toString());
   } else {
-    return new Decimal(slot);
+    return new Decimal(slot.toString());
   }
 }
 
 export async function getCurrentRps(
   farm: FarmState,
   rewardIndex: number,
-  slot: number,
-  timestamp: number,
+  slot: Slot,
+  timestamp: UnixTimestamp,
 ): Promise<number> {
   const currentTimeUnit = new Decimal(
     await getCurrentTimeUnit(farm, slot, timestamp),
@@ -2643,23 +1916,6 @@ export async function getCurrentRps(
     farm.rewardInfos[rewardIndex],
     currentTimeUnit,
   );
-}
-
-export async function printMultisigTx(tx: Transaction) {
-  console.log(binary_to_base58(tx.serializeMessage()));
-}
-
-export async function printSimulateTx(conn: Connection, tx: Transaction) {
-  console.log(
-    "Tx in B64",
-    `https://explorer.solana.com/tx/inspector?message=${encodeURIComponent(
-      tx.serializeMessage().toString("base64"),
-    )}`,
-  );
-
-  let res = await conn.simulateTransaction(tx);
-  console.log("Simulate Response", res);
-  console.log("");
 }
 
 export const calcAvgBoost = (dollarValueBoosts: [Decimal, Decimal][]) => {
@@ -2677,28 +1933,28 @@ export const calcAvgBoost = (dollarValueBoosts: [Decimal, Decimal][]) => {
 
 export const calculatePointsPerDay = (
   kaminoMarket: KaminoMarket,
-  user: PublicKey,
-  mint: PublicKey,
-  farmPubkeyToFarmStates: PubkeyHashMap<PublicKey, FarmState>,
-  pointsMint: PublicKey,
+  user: Address,
+  mint: Address,
+  farmPubkeyToFarmStates: Map<Address, FarmState>,
+  pointsMint: Address,
   pointsFactor: number,
   position: Position,
   isCollateral: boolean,
   finalBoost: Decimal,
   scopePrices: OraclePrices | null,
 ) => {
-  const reserve = kaminoMarket.getReserveByMint(mint)!;
+  const reserve = kaminoMarket.getReserveByMint(toLegacyPublicKey(mint))!;
   const farmStateKey = isCollateral
-    ? reserve!.state.farmCollateral
-    : reserve!.state.farmDebt;
+    ? fromLegacyPublicKey(reserve.state.farmCollateral)
+    : fromLegacyPublicKey(reserve.state.farmDebt);
   const farmState = farmPubkeyToFarmStates.get(farmStateKey);
   if (!farmState) {
     return new Decimal(0);
   }
   const lastIssuanceTs = farmState.rewardInfos[0].lastIssuanceTs.toNumber();
   const lastIssuanceTsPlusOneDay = new Decimal(lastIssuanceTs + 86400);
-  const rewardIndex = farmState.rewardInfos.findIndex((r: RewardInfo) =>
-    r.token.mint.equals(pointsMint),
+  const rewardIndex = farmState.rewardInfos.findIndex(
+    (r: RewardInfo) => r.token.mint === pointsMint,
   );
 
   const totalRewardsToIssuedForEntireFarm = calculateNewRewardToBeIssued(
@@ -2737,6 +1993,6 @@ const newUserPointsBreakdown = (): UserPointsBreakdown => ({
   totalPoints: new Decimal(0),
   currentBoost: new Decimal(0),
   currentPointsPerDay: new Decimal(0),
-  perPositionBoost: new PubkeyHashMap(),
-  perPositionPointsPerDay: new PubkeyHashMap(),
+  perPositionBoost: new Map<Address, Decimal>(),
+  perPositionPointsPerDay: new Map<Address, Decimal>(),
 });

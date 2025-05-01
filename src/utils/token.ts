@@ -1,173 +1,93 @@
 import {
-  createMintToInstruction,
-  getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID,
-  unpackMint,
-} from "@solana/spl-token";
+  Address,
+  GetAccountInfoApi,
+  GetMinimumBalanceForRentExemptionApi,
+  IInstruction,
+  Rpc,
+  TransactionSigner,
+} from "@solana/kit";
 import {
-  Connection,
-  Keypair,
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-} from "@solana/web3.js";
+  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  fetchMint,
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+  getInitializeMint2Instruction,
+} from "@solana-program/token-2022";
 import {
-  createInitializeMint2Instruction,
-  createAssociatedTokenAccountIdempotentInstruction as createAta,
-  getAssociatedTokenAddress as getAta,
-} from "@solana/spl-token";
-import * as anchor from "@coral-xyz/anchor";
-import { createAddExtraComputeUnitFeeTransaction } from "../commands/utils";
-import { checkIfAccountExists } from "./utils";
+  getCreateAccountInstruction,
+  SYSTEM_PROGRAM_ADDRESS,
+} from "@solana-program/system";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
-export async function createMint(
-  provider: anchor.AnchorProvider,
-  authority: PublicKey,
-  decimals: number = 6,
-): Promise<PublicKey> {
-  const mint = anchor.web3.Keypair.generate();
-  return await createMintFromKeypair(provider, authority, mint, decimals);
-}
-
-export async function createMintFromKeypair(
-  provider: anchor.AnchorProvider,
-  authority: PublicKey,
-  mint: Keypair,
-  decimals: number = 6,
-): Promise<PublicKey> {
-  const instructions = await createMintInstructions(
-    provider,
-    authority,
-    mint.publicKey,
-    decimals,
-  );
-
-  const tx = new anchor.web3.Transaction();
-  tx.add(...instructions);
-
-  await provider.sendAndConfirm(tx, [mint]);
-  return mint.publicKey;
-}
-
-async function createMintInstructions(
-  provider: anchor.AnchorProvider,
-  authority: PublicKey,
-  mint: PublicKey,
+export async function createMintInstructions(
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi>,
+  authority: TransactionSigner,
+  mint: TransactionSigner,
   decimals: number,
-): Promise<TransactionInstruction[]> {
+): Promise<IInstruction[]> {
   return [
-    anchor.web3.SystemProgram.createAccount({
-      fromPubkey: provider.wallet.publicKey,
-      newAccountPubkey: mint,
-      space: 82,
-      lamports: await provider.connection.getMinimumBalanceForRentExemption(82),
-      programId: TOKEN_PROGRAM_ID,
+    getCreateAccountInstruction({
+      payer: authority,
+      space: 82n,
+      lamports: await rpc.getMinimumBalanceForRentExemption(82n).send(),
+      programAddress: TOKEN_PROGRAM_ADDRESS,
+      newAccount: mint,
     }),
-    createInitializeMint2Instruction(
-      mint,
-      decimals,
-      authority,
-      null,
-      TOKEN_PROGRAM_ID,
+    getInitializeMint2Instruction(
+      {
+        mint: mint.address,
+        decimals,
+        mintAuthority: authority.address,
+        freezeAuthority: null,
+      },
+      { programAddress: TOKEN_PROGRAM_ADDRESS },
     ),
   ];
 }
 
 export async function getMintDecimals(
-  connection: Connection,
-  mintAddress: PublicKey,
+  rpc: Rpc<GetAccountInfoApi>,
+  mintAddress: Address,
 ): Promise<number> {
-  const acc = await connection.getAccountInfo(mintAddress);
-  if (!acc) {
-    throw new Error(`Failed to find mint account ${mintAddress.toBase58()}`);
-  }
-  return unpackMint(mintAddress, acc, acc.owner).decimals;
+  const mint = await fetchMint(rpc, mintAddress);
+  return mint.data.decimals;
 }
 
-export function getAssociatedTokenAddress(
-  owner: PublicKey,
-  tokenMintAddress: PublicKey,
-  tokenProgram: PublicKey,
-): PublicKey {
-  return getAssociatedTokenAddressSync(
-    tokenMintAddress,
+export async function getAssociatedTokenAddress(
+  owner: Address,
+  tokenMintAddress: Address,
+  tokenProgram: Address,
+): Promise<Address> {
+  const [ata] = await findAssociatedTokenPda({
+    mint: tokenMintAddress,
     owner,
-    true,
     tokenProgram,
-  );
+  });
+  return ata;
 }
 
 export async function createAssociatedTokenAccountIdempotentInstruction(
-  owner: PublicKey,
-  mint: PublicKey,
-  payer: PublicKey = owner,
-  tokenProgram: PublicKey,
-  ata?: PublicKey,
-): Promise<[PublicKey, TransactionInstruction]> {
+  payer: TransactionSigner,
+  mint: Address,
+  tokenProgram: Address,
+  owner: Address = payer.address,
+  ata?: Address,
+): Promise<[Address, IInstruction]> {
   let ataAddress = ata;
   if (!ataAddress) {
     ataAddress = await getAssociatedTokenAddress(owner, mint, tokenProgram);
   }
-  const createUserTokenAccountIx = createAta(
-    payer,
-    ataAddress,
-    owner,
-    mint,
-    tokenProgram,
-  );
-  return [ataAddress, createUserTokenAccountIx];
-}
-
-export async function setupAta(
-  provider: anchor.AnchorProvider,
-  tokenMintAddress: PublicKey,
-  user: Keypair,
-): Promise<PublicKey> {
-  const ata = await getAssociatedTokenAddress(
-    user.publicKey,
-    tokenMintAddress,
-    TOKEN_PROGRAM_ID,
-  );
-  if (!(await checkIfAccountExists(provider.connection, ata))) {
-    const [, ix] = await createAssociatedTokenAccountIdempotentInstruction(
-      user.publicKey,
-      tokenMintAddress,
-      user.publicKey,
-      TOKEN_PROGRAM_ID,
-      ata,
+  const createUserTokenAccountIx =
+    getCreateAssociatedTokenIdempotentInstruction(
+      {
+        ata: ataAddress,
+        mint: mint,
+        owner,
+        payer,
+        tokenProgram,
+        systemProgram: SYSTEM_PROGRAM_ADDRESS,
+      },
+      { programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS },
     );
-    const tx = new Transaction().add(ix);
-    await provider.connection.sendTransaction(tx, [user]);
-  }
-  return ata;
-}
-
-export async function mintTo(
-  provider: anchor.AnchorProvider,
-  mintPubkey: PublicKey,
-  tokenAccount: PublicKey,
-  amount: number,
-) {
-  const tx = new Transaction().add(
-    createMintToInstruction(
-      mintPubkey,
-      tokenAccount,
-      provider.wallet.publicKey,
-      amount,
-      [],
-      TOKEN_PROGRAM_ID,
-    ),
-  );
-
-  const microLamport = 10 ** 6; // 1 lamport
-  const computeUnits = 200_000;
-  const microLamportsPrioritizationFee = microLamport / computeUnits;
-
-  const priorityFeeIxn = createAddExtraComputeUnitFeeTransaction(
-    computeUnits,
-    microLamportsPrioritizationFee * 5,
-  );
-  tx.add(...priorityFeeIxn);
-
-  await provider.sendAndConfirm(tx);
+  return [ataAddress, createUserTokenAccountIx];
 }

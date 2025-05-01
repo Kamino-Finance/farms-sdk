@@ -1,7 +1,7 @@
-import { PublicKey } from "@solana/web3.js";
-import { UserState } from "../rpc_client/accounts";
+import { Address } from "@solana/kit";
+import { UserState } from "../@codegen/farms/accounts";
 
 export type UserAndKey = {
   userState: UserState;
-  key: PublicKey;
+  key: Address;
 };

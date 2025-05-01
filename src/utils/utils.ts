@@ -1,29 +1,31 @@
-import * as anchor from "@coral-xyz/anchor";
-import * as fs from "fs";
-import * as FarmsErrors from "../rpc_client/errors";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { fromCode as fromFarmsErrorCode } from "../@codegen/farms/errors/index";
 import {
-  Connection,
-  Keypair,
-  PublicKey,
-  TransactionInstruction,
-  Transaction,
-  Signer,
-  SystemProgram,
-} from "@solana/web3.js";
+  Address,
+  IInstruction,
+  Rpc,
+  GetBalanceApi,
+  address,
+  Lamports,
+  GetTokenAccountBalanceApi,
+  TransactionSigner,
+  GetMinimumBalanceForRentExemptionApi,
+  GetAccountInfoApi,
+  getProgramDerivedAddress,
+  getAddressEncoder,
+  isAddress,
+} from "@solana/kit";
 import { Decimal } from "decimal.js";
-import * as web3 from "@solana/web3.js";
-import { Env, SIZE_GLOBAL_CONFIG, SIZE_FARM_STATE } from "./setup";
-import { GlobalConfig, UserState, FarmState } from "../rpc_client/accounts";
-import { farmsId } from "../Farms";
+import { GlobalConfig, UserState, FarmState } from "../@codegen/farms/accounts";
+import { getCreateAccountInstruction } from "@solana-program/system";
+import { PROGRAM_ID as FARMS_PROGRAM_ID } from "../@codegen/farms/programId";
+import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
+import BN from "bn.js";
 
 export const WAD = new Decimal("1".concat(Array(18 + 1).join("0")));
 
-export function parseKeypairFile(file: string): Keypair {
-  return Keypair.fromSecretKey(
-    Buffer.from(JSON.parse(require("fs").readFileSync(file))),
-  );
-}
+export type GlobalConfigFlagValueType = "number" | "bool" | "publicKey";
+
+const addressEncoder = getAddressEncoder();
 
 export function collToLamportsDecimal(
   amount: Decimal,
@@ -41,72 +43,32 @@ export function lamportsToCollDecimal(
 }
 
 export interface GlobalConfigAccounts {
-  globalAdmin: Keypair;
-  globalConfig: Keypair;
-  treasuryVaults: Array<PublicKey>;
-  treasuryVaultAuthority: PublicKey;
-  globalAdminRewardAtas: Array<PublicKey>;
+  globalAdmin: TransactionSigner;
+  globalConfig: TransactionSigner;
+  treasuryVaults: Array<Address>;
+  treasuryVaultAuthority: Address;
+  globalAdminRewardAtas: Array<Address>;
 }
 
 export interface FarmAccounts {
-  farmAdmin: Keypair;
-  farmState: Keypair;
-  tokenMint: PublicKey;
-  farmVault: PublicKey;
-  rewardVaults: Array<PublicKey>;
-  farmVaultAuthority: PublicKey;
-  rewardMints: Array<PublicKey>;
-  adminRewardAtas: Array<PublicKey>;
-}
-
-export interface UserAccounts {
-  owner: Keypair;
-  userState: PublicKey;
-  tokenAta: PublicKey;
-  rewardAtas: Array<PublicKey>;
-}
-
-export async function solAirdrop(
-  provider: anchor.AnchorProvider,
-  account: PublicKey,
-  solAirdrop: Decimal,
-): Promise<Decimal> {
-  const airdropTxnId = await provider.connection.requestAirdrop(
-    account,
-    collToLamportsDecimal(solAirdrop, 9).toNumber(),
-  );
-  await provider.connection.confirmTransaction(airdropTxnId);
-  return await getSolBalance(provider, account);
-}
-
-export async function solAirdropMin(
-  provider: anchor.AnchorProvider,
-  account: PublicKey,
-  minSolAirdrop: Decimal,
-): Promise<Decimal> {
-  const airdropBatchAmount = Decimal.max(50, minSolAirdrop);
-  let currentBalance = await getSolBalance(provider, account);
-  while (currentBalance.lt(minSolAirdrop)) {
-    try {
-      await provider.connection.requestAirdrop(
-        account,
-        collToLamportsDecimal(airdropBatchAmount, 9).toNumber(),
-      );
-    } catch (e) {
-      await sleep(100);
-      console.log("Error", e);
-    }
-    await sleep(100);
-    currentBalance = await getSolBalance(provider, account);
-  }
-  return currentBalance;
+  farmAdmin: TransactionSigner;
+  farmState: TransactionSigner;
+  tokenMint: Address;
+  farmVault: Address;
+  rewardVaults: Array<Address>;
+  farmVaultAuthority: Address;
+  rewardMints: Array<Address>;
+  adminRewardAtas: Array<Address>;
 }
 
 export async function checkIfAccountExists(
-  connection: Connection,
-  account: PublicKey,
+  connection: Rpc<GetAccountInfoApi>,
+  account: Address,
 ): Promise<boolean> {
-  return (await connection.getAccountInfo(account)) != null;
+  return (
+    (await connection.getAccountInfo(account, { encoding: "base64" }).send())
+      .value != null
+  );
 }
 
 /**
@@ -148,7 +110,7 @@ export async function mapAnchorError<T>(fn: Promise<T>): Promise<T> {
     if (isCustomProgramError) {
       let error: any;
       if (!isNaN(Number(errorCode))) {
-        error = FarmsErrors.fromCode(Number(errorCode));
+        error = fromFarmsErrorCode(Number(errorCode));
         throw new Error(error);
       } else if (Number(errorCode) >= 6000 && Number(errorCode) <= 7000) {
         errorCode[errorCode.length - 2] === "0"
@@ -166,66 +128,44 @@ export async function mapAnchorError<T>(fn: Promise<T>): Promise<T> {
 }
 
 export async function getTokenAccountBalance(
-  provider: anchor.AnchorProvider,
-  tokenAccount: PublicKey,
+  rpc: Rpc<GetTokenAccountBalanceApi>,
+  tokenAccount: Address,
 ): Promise<Decimal> {
-  const tokenAccountBalance =
-    await provider.connection.getTokenAccountBalance(tokenAccount);
+  const tokenAccountBalance = await rpc
+    .getTokenAccountBalance(tokenAccount)
+    .send();
   return new Decimal(tokenAccountBalance.value.amount).div(
     Decimal.pow(10, tokenAccountBalance.value.decimals),
   );
 }
 
 export async function getSolBalanceInLamports(
-  provider: anchor.AnchorProvider,
-  account: PublicKey,
-): Promise<number> {
-  let balance: number | undefined = undefined;
+  rpc: Rpc<GetBalanceApi>,
+  account: Address,
+): Promise<Lamports> {
+  let balance: Lamports | undefined = undefined;
   while (balance === undefined) {
-    balance = (await provider.connection.getAccountInfo(account))?.lamports;
+    balance = (await rpc.getBalance(account).send()).value;
   }
   return balance;
 }
 
 export async function getSolBalance(
-  provider: anchor.AnchorProvider,
-  account: PublicKey,
+  rpc: Rpc<GetBalanceApi>,
+  account: Address,
 ): Promise<Decimal> {
-  const balance = new Decimal(await getSolBalanceInLamports(provider, account));
+  const balance = new Decimal(
+    (await getSolBalanceInLamports(rpc, account)).toString(),
+  );
   return lamportsToCollDecimal(balance, 9);
 }
 
-export type Cluster = "localnet" | "devnet" | "mainnet";
-export type SolEnv = {
-  cluster: Cluster;
-  ownerKeypairPath: string;
-  endpoint: string;
-};
-
-export function getFarmsProgramId(cluster: string) {
-  return new PublicKey("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
-}
-
-export function pubkeyFromFile(filepath: string): PublicKey {
-  const fileContents = fs.readFileSync(filepath, "utf8");
-  const privateArray = fileContents
-    .replace("[", "")
-    .replace("]", "")
-    .split(",")
-    .map(function (item) {
-      return parseInt(item, 10);
-    });
-  const array = Uint8Array.from(privateArray);
-  const keypair = Keypair.fromSecretKey(array);
-  return keypair.publicKey;
-}
-
 export function createAddExtraComputeUnitsTransaction(
-  owner: PublicKey,
   units: number,
-): TransactionInstruction {
-  return web3.ComputeBudgetProgram.setComputeUnitLimit({ units });
+): IInstruction {
+  return getSetComputeUnitLimitInstruction({ units });
 }
+
 export function u16ToBytes(num: number) {
   const arr = new ArrayBuffer(2);
   const view = new DataView(arr);
@@ -234,131 +174,135 @@ export function u16ToBytes(num: number) {
 }
 
 export async function accountExist(
-  connection: anchor.web3.Connection,
-  account: anchor.web3.PublicKey,
+  rpc: Rpc<GetAccountInfoApi>,
+  account: Address,
 ) {
-  const info = await connection.getAccountInfo(account);
-  if (info === null || info.data.length === 0) {
+  const info = await rpc.getAccountInfo(account).send();
+  if (info.value === null || info.value.data.length === 0) {
     return false;
   }
   return true;
 }
 
 export async function fetchFarmStateWithRetry(
-  env: Env,
-  address: PublicKey,
+  rpc: Rpc<GetAccountInfoApi>,
+  address: Address,
 ): Promise<FarmState | null> {
   return fetchWithRetry(
-    async () => await FarmState.fetch(env.provider.connection, address),
+    async () => await FarmState.fetch(rpc, address),
     address,
   );
 }
 
 export async function fetchGlobalConfigWithRetry(
-  env: Env,
-  address: PublicKey,
+  rpc: Rpc<GetAccountInfoApi>,
+  address: Address,
 ): Promise<GlobalConfig> {
   return fetchWithRetry(
-    async () => await GlobalConfig.fetch(env.provider.connection, address),
+    async () => await GlobalConfig.fetch(rpc, address),
     address,
   );
 }
 
 export async function fetchUserStateWithRetry(
-  env: Env,
-  address: PublicKey,
+  rpc: Rpc<GetAccountInfoApi>,
+  address: Address,
 ): Promise<UserState> {
   return fetchWithRetry(
-    async () => await UserState.fetch(env.provider.connection, address),
+    async () => await UserState.fetch(rpc, address),
     address,
   );
 }
 
-export function getTreasuryVaultPDA(
-  programId: PublicKey,
-  globalConfig: PublicKey,
-  rewardMint: PublicKey,
-): PublicKey {
-  const [treasuryVault, _rewardTreasuryVaultBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("tvault"), globalConfig.toBuffer(), rewardMint.toBuffer()],
-      programId,
-    );
-
+export async function getTreasuryVaultPDA(
+  programId: Address,
+  globalConfig: Address,
+  rewardMint: Address,
+): Promise<Address> {
+  const [treasuryVault] = await getProgramDerivedAddress({
+    seeds: [
+      Buffer.from("tvault"),
+      addressEncoder.encode(globalConfig),
+      addressEncoder.encode(rewardMint),
+    ],
+    programAddress: programId,
+  });
   return treasuryVault;
 }
 
-export function getTreasuryAuthorityPDA(
-  programId: PublicKey,
-  globalConfig: PublicKey,
-): PublicKey {
-  const [treasuryAuthority, _treasuryAuthorityBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("authority"), globalConfig.toBuffer()],
-      programId,
-    );
-
+export async function getTreasuryAuthorityPDA(
+  farmsProgramId: Address,
+  globalConfig: Address,
+): Promise<Address> {
+  const [treasuryAuthority] = await getProgramDerivedAddress({
+    seeds: [Buffer.from("authority"), addressEncoder.encode(globalConfig)],
+    programAddress: farmsProgramId,
+  });
   return treasuryAuthority;
 }
 
-export function getFarmAuthorityPDA(
-  programId: PublicKey,
-  farmState: PublicKey,
-): PublicKey {
-  const [farmAuthority, _farmAuthorityBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("authority"), farmState.toBuffer()],
-      programId,
-    );
-
+export async function getFarmAuthorityPDA(
+  farmsProgramId: Address,
+  farmState: Address,
+): Promise<Address> {
+  const [farmAuthority] = await getProgramDerivedAddress({
+    seeds: [Buffer.from("authority"), addressEncoder.encode(farmState)],
+    programAddress: farmsProgramId,
+  });
   return farmAuthority;
 }
 
-export function getFarmVaultPDA(
-  programId: PublicKey,
-  farmState: PublicKey,
-  tokenMint: PublicKey,
-): PublicKey {
-  const [farmVault, _farmVaultBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("fvault"), farmState.toBuffer(), tokenMint.toBuffer()],
-      programId,
-    );
-
+export async function getFarmVaultPDA(
+  farmsProgramId: Address,
+  farmState: Address,
+  tokenMint: Address,
+): Promise<Address> {
+  const [farmVault] = await getProgramDerivedAddress({
+    seeds: [
+      Buffer.from("fvault"),
+      addressEncoder.encode(farmState),
+      addressEncoder.encode(tokenMint),
+    ],
+    programAddress: farmsProgramId,
+  });
   return farmVault;
 }
 
-export function getRewardVaultPDA(
-  programId: PublicKey,
-  farmState: PublicKey,
-  rewardMint: PublicKey,
-): PublicKey {
-  const [rewardVault, _rewardVaultBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("rvault"), farmState.toBuffer(), rewardMint.toBuffer()],
-      programId,
-    );
-
+export async function getRewardVaultPDA(
+  programId: Address,
+  farmState: Address,
+  rewardMint: Address,
+): Promise<Address> {
+  const [rewardVault] = await getProgramDerivedAddress({
+    seeds: [
+      Buffer.from("rvault"),
+      addressEncoder.encode(farmState),
+      addressEncoder.encode(rewardMint),
+    ],
+    programAddress: programId,
+  });
   return rewardVault;
 }
 
-export function getUserStatePDA(
-  programId: PublicKey,
-  farmState: PublicKey,
-  owner: PublicKey,
-): PublicKey {
-  const [userState, _userStateBump] =
-    anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), farmState.toBuffer(), owner.toBuffer()],
-      programId,
-    );
-
+export async function getUserStatePDA(
+  programId: Address,
+  farmState: Address,
+  owner: Address,
+): Promise<Address> {
+  const [userState] = await getProgramDerivedAddress({
+    seeds: [
+      Buffer.from("user"),
+      addressEncoder.encode(farmState),
+      addressEncoder.encode(owner),
+    ],
+    programAddress: programId,
+  });
   return userState;
 }
 
 async function fetchWithRetry(
   fetch: () => Promise<any>,
-  address: PublicKey,
+  address: Address,
   retries: number = 3,
 ) {
   for (let i = 0; i < retries; i++) {
@@ -373,28 +317,11 @@ async function fetchWithRetry(
   return null;
 }
 
-export async function sendAndConfirmInstructions(
-  env: Env,
-  ixns: [TransactionInstruction],
-): Promise<web3.TransactionSignature> {
-  let tx = new Transaction();
-  for (let i = 0; i < ixns.length; i++) {
-    tx.add(ixns[i]);
-  }
-  let { blockhash } = await env.provider.connection.getLatestBlockhash();
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = env.initialOwner.publicKey;
-
-  return await web3.sendAndConfirmTransaction(env.provider.connection, tx, [
-    env.initialOwner,
-  ]);
-}
-
 export function getGlobalConfigValue(
-  flagValueType: string,
+  flagValueType: GlobalConfigFlagValueType,
   flagValue: string,
 ): number[] {
-  let value: bigint | PublicKey | boolean;
+  let value: bigint | Address | boolean;
   if (flagValueType === "number") {
     value = BigInt(flagValue);
   } else if (flagValueType === "bool") {
@@ -406,14 +333,14 @@ export function getGlobalConfigValue(
       throw new Error("the provided flag value is not valid bool");
     }
   } else if (flagValueType === "publicKey") {
-    value = new PublicKey(flagValue);
+    value = address(flagValue);
   } else {
     throw new Error("flagValueType must be 'number', 'bool', or 'publicKey'");
   }
 
   let buffer: Buffer;
-  if (value instanceof PublicKey) {
-    buffer = value.toBuffer();
+  if (typeof value === "string" && isAddress(value)) {
+    buffer = Buffer.from(addressEncoder.encode(value));
   } else if (typeof value === "boolean") {
     buffer = Buffer.alloc(32);
     value ? buffer.writeUInt8(1, 0) : buffer.writeUInt8(0, 0);
@@ -426,121 +353,28 @@ export function getGlobalConfigValue(
   return [...buffer];
 }
 
-export async function createKeypairRentExempt(
-  provider: anchor.AnchorProvider,
-  programId: PublicKey,
-  address: Keypair,
-  size: number,
-): Promise<web3.Keypair> {
-  const tx = new Transaction();
-  tx.add(
-    await createKeypairRentExemptIx(
-      provider.connection,
-      provider.wallet.publicKey,
-      address,
-      size,
-      programId,
-    ),
-  );
-  await provider.sendAndConfirm(tx, [address]);
-  return address;
-}
-
 export async function createKeypairRentExemptIx(
-  connection: Connection,
-  payer: PublicKey,
-  account: Keypair,
-  size: number,
-  programId: PublicKey = farmsId,
-): Promise<TransactionInstruction> {
-  return SystemProgram.createAccount({
-    fromPubkey: payer,
-    newAccountPubkey: account.publicKey,
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi>,
+  payer: TransactionSigner,
+  account: TransactionSigner,
+  size: bigint,
+  programId: Address = FARMS_PROGRAM_ID,
+): Promise<IInstruction> {
+  return getCreateAccountInstruction({
+    payer: payer,
     space: size,
-    lamports: await connection.getMinimumBalanceForRentExemption(size),
-    programId: programId,
+    lamports: await rpc.getMinimumBalanceForRentExemption(size).send(),
+    programAddress: programId,
+    newAccount: account,
   });
-}
-
-export async function createGlobalConfigPublicKeyRentExempt(
-  provider: anchor.AnchorProvider,
-  programId: PublicKey,
-): Promise<Keypair> {
-  const config = Keypair.generate();
-  const key = await createKeypairRentExempt(
-    provider,
-    programId,
-    config,
-    SIZE_GLOBAL_CONFIG,
-  );
-  return key;
-}
-
-export async function createFarmPublicKeyRentExempt(
-  provider: anchor.AnchorProvider,
-  programId: PublicKey,
-): Promise<Keypair> {
-  const farm = Keypair.generate();
-  const key = await createKeypairRentExempt(
-    provider,
-    programId,
-    farm,
-    SIZE_FARM_STATE,
-  );
-  return key;
-}
-
-export async function buildAndSendTxnWithLogs(
-  c: Connection,
-  tx: Transaction,
-  owner: Keypair,
-  signers: Signer[],
-) {
-  const { blockhash } = await c.getLatestBlockhash();
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = owner.publicKey;
-
-  try {
-    const sig: string = await c.sendTransaction(tx, [owner, ...signers]);
-    console.log("Transaction Hash:", sig);
-    await sleep(5000);
-    const res = await c.getTransaction(sig, {
-      commitment: "confirmed",
-    });
-    console.log("Transaction Logs:\n", res!.meta!.logMessages);
-  } catch (e: any) {
-    console.log(e);
-    await sleep(5000);
-    const sig = e.toString().split(" failed ")[0].split("Transaction ")[1];
-    const res = await c.getTransaction(sig, {
-      commitment: "confirmed",
-    });
-    console.log("Txn", res!.meta!.logMessages);
-  }
 }
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function scaleDownWads(value: anchor.BN) {
+export function scaleDownWads(value: BN) {
   return new Decimal(value.toString()).div(WAD).toNumber();
-}
-
-export function convertStakeToAmount(
-  stake: Decimal,
-  totalStaked: Decimal,
-  totalAmount: Decimal,
-): Decimal {
-  if (stake === new Decimal(0)) {
-    return new Decimal(0);
-  }
-
-  if (totalStaked !== new Decimal(0)) {
-    return stake.mul(totalAmount).div(totalStaked);
-  } else {
-    return stake.add(totalAmount);
-  }
 }
 
 export function convertAmountToStake(

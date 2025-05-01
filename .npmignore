@@ -1,3 +1,3 @@
 node_modules
 tests
-src/client.ts
+../farms-cli/src/client.ts

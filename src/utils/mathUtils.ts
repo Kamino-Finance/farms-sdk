@@ -1,10 +1,10 @@
-import { UserState } from "../rpc_client/accounts/UserState";
-import { FarmState } from "../rpc_client/accounts/FarmState";
+import { UserState } from "../@codegen/farms/accounts/UserState";
+import { FarmState } from "../@codegen/farms/accounts/FarmState";
 import Decimal from "decimal.js";
 import { WAD } from "./utils";
-import { PublicKey } from "@solana/web3.js";
-import { RewardInfo, RewardType } from "../rpc_client/types";
-import { OraclePrices } from "@kamino-finance/scope-sdk";
+import { RewardInfo, RewardType } from "../@codegen/farms/types";
+import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
+import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
 export function calculatePendingRewards(
   farmState: FarmState,
@@ -25,7 +25,7 @@ export function calculatePendingRewards(
   ).div(WAD);
 
   let activeStakeScaled = new Decimal(0);
-  if (farmState.delegateAuthority.equals(PublicKey.default)) {
+  if (farmState.delegateAuthority === DEFAULT_PUBLIC_KEY) {
     activeStakeScaled = new Decimal(userState.activeStakeScaled.toString()).div(
       WAD,
     );
@@ -87,7 +87,7 @@ function calculateRewardPerStake(
     farmState.totalActiveStakeScaled.toString(),
   );
 
-  if (farmState.delegateAuthority.equals(PublicKey.default)) {
+  if (farmState.delegateAuthority === DEFAULT_PUBLIC_KEY) {
     rewardPerTokenScaledAdded = scaledRewards.div(totalActiveStakeScaled);
   } else {
     if (
@@ -130,7 +130,7 @@ export function calculateNewRewardToBeIssued(
     newRewards = newRewards.mul(totalStaked);
   }
 
-  if (!farmState.scopePrices.equals(PublicKey.default)) {
+  if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
     // Oracle adjustment
     if (scopePrice == null) {
       throw new Error("Scope price not provided");
@@ -153,7 +153,7 @@ export function scopePriceForFarm(
   scopePrices: OraclePrices | null,
 ): Decimal | null {
   let scopePrice: Decimal | null = null;
-  if (!farmState.scopePrices.equals(PublicKey.default)) {
+  if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
     if (scopePrices == null) {
       throw new Error("Scope prices not provided");
     }

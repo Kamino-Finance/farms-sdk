@@ -5,7 +5,8 @@
     "lib": ["es2022"],
     "rootDir": "src",
     "outDir": "dist",
-    "typeRoots": ["node", "node_modules/@types"],
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "typeRoots": ["../node_modules/@types", "node_modules/@types", "node_modules/@coral-xyz/anchor/types"],
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,
@@ -21,11 +22,8 @@
     "useUnknownInCatchVariables": false,
     "resolveJsonModule": true,
     "strict": true,
-    "paths": {
-      "*": ["./node_modules/*", "../node_modules/*"]
-    }
+    "composite": true
   },
   "compileOnSave": true,
-  "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "tests"]
+  "include": ["src/**/*"]
 }

@@ -1,7 +1,7 @@
-import { PublicKey } from "@solana/web3.js";
-import { FarmState } from "../rpc_client/accounts";
+import { Address } from "@solana/kit";
+import { FarmState } from "../@codegen/farms/accounts";
 
 export type FarmAndKey = {
   farmState: FarmState;
-  key: PublicKey;
+  key: Address;
 };

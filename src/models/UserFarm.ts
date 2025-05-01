@@ -1,26 +1,25 @@
-import { PublicKey } from "@solana/web3.js";
+import { Address } from "@solana/kit";
 import Decimal from "decimal.js";
-import { RewardInfo } from "../rpc_client/types";
-import { PubkeyHashMap } from "@kamino-finance/klend-sdk";
-import { UserState } from "../rpc_client/accounts";
+import { RewardInfo } from "../@codegen/farms/types";
+import { UserState } from "../@codegen/farms/accounts";
 
 export type UserFarm = {
-  userStateAddress: PublicKey;
-  farm: PublicKey;
-  stakedToken: PublicKey;
-  activeStakeByDelegatee: PubkeyHashMap<PublicKey, Decimal>; // key is the delegate address
-  pendingDepositStakeByDelegatee: PubkeyHashMap<PublicKey, Decimal>; // key is the delegate address
-  pendingWithdrawalUnstakeByDelegatee: PubkeyHashMap<PublicKey, Decimal>; // key is the delegate address
+  userStateAddress: Address;
+  farm: Address;
+  stakedToken: Address;
+  activeStakeByDelegatee: Map<Address, Decimal>; // key is the delegate address
+  pendingDepositStakeByDelegatee: Map<Address, Decimal>; // key is the delegate address
+  pendingWithdrawalUnstakeByDelegatee: Map<Address, Decimal>; // key is the delegate address
   pendingRewards: PendingReward[];
-  delegateAuthority: PublicKey;
-  strategyId: PublicKey;
+  delegateAuthority: Address;
+  strategyId: Address;
   userState: UserState;
 };
 
 export type PendingReward = {
-  rewardTokenMint: PublicKey;
-  rewardTokenProgramId: PublicKey;
+  rewardTokenMint: Address;
+  rewardTokenProgramId: Address;
   rewardType: RewardInfo["rewardType"];
   cumulatedPendingRewards: Decimal;
-  pendingRewardsByDelegatee: PubkeyHashMap<PublicKey, Decimal>;
+  pendingRewardsByDelegatee: Map<Address, Decimal>;
 };

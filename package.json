@@ -10,10 +10,10 @@
   ],
   "version": "2.4.3",
   "scripts": {
-    "build": "tsc",
-    "build:test": "tsc --project ./tests/tsconfig.json",
-    "build:watch": "tsc -w",
-    "cli": "yarn tsx src/client.ts",
+    "build": "yarn tsc",
+    "build:test": "yarn tsc --project ./tests/tsconfig.json",
+    "build:watch": "yarn tsc -w",
+    "cli": "yarn tsx ../farms-cli/src/client.ts",
     "test": "DEBUG=true yarn build:test && npx ts-mocha ./tests/**/tests_*.ts --parallel --exit"
   },
   "repository": {
@@ -34,20 +34,23 @@
   "bugs": {
     "url": "https://github.com/kamino-finance/farms/issues"
   },
-  "homepage": "https://github.com/kamino-finance/farms-sdk",
+  "homepage": "https://github.com/kamino-finance/farms",
   "dependencies": {
     "@coral-xyz/anchor": "^0.28.0",
     "@coral-xyz/borsh": "^0.28.0",
     "@kamino-finance/klend-sdk": "^5.10.32",
-    "@kamino-finance/kliquidity-sdk": "^7.0.13",
-    "@kamino-finance/scope-sdk": "^8.0.4",
-    "@solana/spl-token": "^0.4.9",
-    "@solana/web3.js": "^1.95.5",
-    "base58-js": "1.0.5",
+    "@kamino-finance/kliquidity-sdk": "^8.0.0",
+    "@kamino-finance/scope-sdk": "^9.0.0",
+    "@solana/compat": "^2.1.0",
+    "@solana/kit": "^2.1.0",
+    "@solana/sysvars": "^2.1.0",
+    "@solana/web3.js": "^1.98.0",
+    "@solana-program/address-lookup-table": "^0.7.0",
+    "@solana-program/compute-budget": "^0.7.0",
+    "@solana-program/system": "^0.7.0",
+    "@solana-program/token": "^0.5.1",
+    "@solana-program/token-2022": "^0.4.0",
     "bn.js": "^5.2.1",
-    "bs58": "^4.0.1",
-    "cli-color": "^2.0.4",
-    "commander": "^9.3.0",
     "decimal.js": "^10.4.3"
   },
   "publishConfig": {
