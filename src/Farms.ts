@@ -107,17 +107,9 @@ export class Farms {
       | GetProgramAccountsMemcmpFilter
     )[] = [];
 
-    filters.push({
-      memcmp: {
-        bytes: user,
-        offset: 48n,
-        encoding: "base58",
-      },
-    });
+    filters.push({ memcmp: { bytes: user, offset: 48n, encoding: "base58" } });
 
-    filters.push({
-      dataSize: BigInt(UserState.layout.span + 8),
-    });
+    filters.push({ dataSize: BigInt(UserState.layout.span + 8) });
 
     return (
       await this._connection
@@ -139,11 +131,7 @@ export class Farms {
     return (
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
-          filters: [
-            {
-              dataSize: BigInt(UserState.layout.span + 8),
-            },
-          ],
+          filters: [{ dataSize: BigInt(UserState.layout.span + 8) }],
           encoding: "base64",
         })
         .send()
@@ -163,9 +151,7 @@ export class Farms {
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
           filters: [
-            {
-              dataSize: BigInt(UserState.layout.span + 8),
-            },
+            { dataSize: BigInt(UserState.layout.span + 8) },
             {
               memcmp: {
                 offset: 80n,
@@ -197,15 +183,8 @@ export class Farms {
   async *batchGetAllUserStates(): AsyncGenerator<UserAndKey[], void, unknown> {
     const userStatePubkeys = await this._connection
       .getProgramAccounts(this._farmsProgramId, {
-        filters: [
-          {
-            dataSize: BigInt(UserState.layout.span + 8),
-          },
-        ],
-        dataSlice: {
-          offset: 0,
-          length: 0,
-        },
+        filters: [{ dataSize: BigInt(UserState.layout.span + 8) }],
+        dataSlice: { offset: 0, length: 0 },
         encoding: "base64",
       })
       .send();
@@ -244,16 +223,8 @@ export class Farms {
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
           filters: [
-            {
-              dataSize: BigInt(UserState.layout.span + 8),
-            },
-            {
-              memcmp: {
-                offset: 8n + 8n,
-                bytes: farm,
-                encoding: "base58",
-              },
-            },
+            { dataSize: BigInt(UserState.layout.span + 8) },
+            { memcmp: { offset: 8n + 8n, bytes: farm, encoding: "base58" } },
           ],
           encoding: "base64",
         })
@@ -273,17 +244,9 @@ export class Farms {
       | GetProgramAccountsMemcmpFilter
     )[] = [];
 
-    filters.push({
-      memcmp: {
-        bytes: mint,
-        offset: 72n,
-        encoding: "base58",
-      },
-    });
+    filters.push({ memcmp: { bytes: mint, offset: 72n, encoding: "base58" } });
 
-    filters.push({
-      dataSize: BigInt(FarmState.layout.span + 8),
-    });
+    filters.push({ dataSize: BigInt(FarmState.layout.span + 8) });
 
     return (
       await this._connection
@@ -305,11 +268,7 @@ export class Farms {
     return (
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
-          filters: [
-            {
-              dataSize: BigInt(FarmState.layout.span + 8),
-            },
-          ],
+          filters: [{ dataSize: BigInt(FarmState.layout.span + 8) }],
           encoding: "base64",
         })
         .send()
@@ -341,33 +300,30 @@ export class Farms {
 
     farmStates.forEach((farmState, index) => {
       if (farmState) {
-        farmAndKeys.push({
-          farmState: farmState,
-          key: keys[index],
-        });
+        farmAndKeys.push({ farmState: farmState, key: keys[index] });
       }
     });
 
     return farmAndKeys;
   }
 
+  async getStakedAmountForFarm(farm: Address): Promise<Decimal> {
+    const farmState = await FarmState.fetch(this._connection, farm);
+    if (!farmState) {
+      throw Error("No Farm found");
+    }
+
+    return lamportsToCollDecimal(
+      new Decimal(scaleDownWads(farmState.totalActiveStakeScaled)),
+      farmState.token.decimals.toNumber(),
+    );
+  }
+
   async getStakedAmountForMintForFarm(
-    mint: Address,
+    _mint: Address,
     farm: Address,
   ): Promise<Decimal> {
-    const farms = await this.getFarmsForMint(mint);
-
-    for (let index = 0; index < farms.length; index++) {
-      if (farms[index].key === farm) {
-        return lamportsToCollDecimal(
-          new Decimal(
-            scaleDownWads(farms[index].farmState.totalActiveStakeScaled),
-          ),
-          farms[index].farmState.token.decimals.toNumber(),
-        );
-      }
-    }
-    throw Error("No Farm found");
+    return this.getStakedAmountForFarm(farm);
   }
 
   async getStakedAmountForMint(mint: Address): Promise<Decimal> {
@@ -918,10 +874,7 @@ export class Farms {
       throw new Error(`User state not found ${userStateAddress.toString()}`);
     }
 
-    return {
-      key: userStateAddress,
-      userState: userState,
-    };
+    return { key: userStateAddress, userState: userState };
   }
 
   async getUserTokensInUndelegatedFarm(
