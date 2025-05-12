@@ -73,6 +73,8 @@ export type {
   WithdrawRewardArgs,
   WithdrawRewardAccounts,
 } from "./withdrawReward"
+export { updateSecondDelegatedAuthority } from "./updateSecondDelegatedAuthority"
+export type { UpdateSecondDelegatedAuthorityAccounts } from "./updateSecondDelegatedAuthority"
 export { idlMissingTypes } from "./idlMissingTypes"
 export type {
   IdlMissingTypesArgs,

@@ -900,6 +900,32 @@
       ]
     },
     {
+      "name": "updateSecondDelegatedAuthority",
+      "accounts": [
+        {
+          "name": "globalAdmin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "farmState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "globalConfig",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "newSecondDelegatedAuthority",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "idlMissingTypes",
       "accounts": [
         {
@@ -1162,11 +1188,15 @@
             "type": "publicKey"
           },
           {
+            "name": "secondDelegatedAuthority",
+            "type": "publicKey"
+          },
+          {
             "name": "padding",
             "type": {
               "array": [
                 "u64",
-                78
+                74
               ]
             }
           }
@@ -1438,6 +1468,9 @@
           },
           {
             "name": "UpdateVaultId"
+          },
+          {
+            "name": "UpdateExtraDelegatedAuthority"
           }
         ]
       }

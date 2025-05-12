@@ -90,6 +90,7 @@ export interface FarmStateFields {
   strategyId: Address
   delegatedRpsAdmin: Address
   vaultId: Address
+  secondDelegatedAuthority: Address
   padding: Array<BN>
 }
 
@@ -168,6 +169,7 @@ export interface FarmStateJSON {
   strategyId: string
   delegatedRpsAdmin: string
   vaultId: string
+  secondDelegatedAuthority: string
   padding: Array<string>
 }
 
@@ -246,6 +248,7 @@ export class FarmState {
   readonly strategyId: Address
   readonly delegatedRpsAdmin: Address
   readonly vaultId: Address
+  readonly secondDelegatedAuthority: Address
   readonly padding: Array<BN>
 
   static readonly discriminator = Buffer.from([
@@ -289,7 +292,8 @@ export class FarmState {
     borshAddress("strategyId"),
     borshAddress("delegatedRpsAdmin"),
     borshAddress("vaultId"),
-    borsh.array(borsh.u64(), 78, "padding"),
+    borshAddress("secondDelegatedAuthority"),
+    borsh.array(borsh.u64(), 74, "padding"),
   ])
 
   constructor(fields: FarmStateFields) {
@@ -332,6 +336,7 @@ export class FarmState {
     this.strategyId = fields.strategyId
     this.delegatedRpsAdmin = fields.delegatedRpsAdmin
     this.vaultId = fields.vaultId
+    this.secondDelegatedAuthority = fields.secondDelegatedAuthority
     this.padding = fields.padding
   }
 
@@ -419,6 +424,7 @@ export class FarmState {
       strategyId: dec.strategyId,
       delegatedRpsAdmin: dec.delegatedRpsAdmin,
       vaultId: dec.vaultId,
+      secondDelegatedAuthority: dec.secondDelegatedAuthority,
       padding: dec.padding,
     })
   }
@@ -462,6 +468,7 @@ export class FarmState {
       strategyId: this.strategyId,
       delegatedRpsAdmin: this.delegatedRpsAdmin,
       vaultId: this.vaultId,
+      secondDelegatedAuthority: this.secondDelegatedAuthority,
       padding: this.padding.map((item) => item.toString()),
     }
   }
@@ -508,6 +515,7 @@ export class FarmState {
       strategyId: address(obj.strategyId),
       delegatedRpsAdmin: address(obj.delegatedRpsAdmin),
       vaultId: address(obj.vaultId),
+      secondDelegatedAuthority: address(obj.secondDelegatedAuthority),
       padding: obj.padding.map((item) => new BN(item)),
     })
   }
