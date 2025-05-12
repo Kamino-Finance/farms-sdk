@@ -5,7 +5,6 @@ import {
   GetProgramAccountsDatasizeFilter,
   GetProgramAccountsMemcmpFilter,
   IInstruction,
-  Lamports,
   none,
   Option,
   Rpc,
@@ -20,6 +19,7 @@ import {
   calculateNewRewardToBeIssued,
   calculatePendingRewards,
   checkIfAccountExists,
+  isValidPubkey,
   collToLamportsDecimal,
   createKeypairRentExemptIx,
   DEFAULT_PUBLIC_KEY,
@@ -36,8 +36,14 @@ import {
   SIZE_FARM_STATE,
   SIZE_GLOBAL_CONFIG,
 } from "./utils";
+import {
+  FarmIncentives,
+  IncentiveRewardStats,
+  UserFarm,
+  UserAndKey,
+  FarmAndKey,
+} from "./models";
 import { FarmState, GlobalConfig, UserState } from "./@codegen/farms/accounts";
-import { FarmAndKey, UserAndKey, UserFarm } from "./models";
 import * as farmOperations from "./utils/operations";
 import Decimal from "decimal.js";
 import {
@@ -63,6 +69,13 @@ import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddress,
 } from "./utils/token";
+import {
+  SECONDS_IN_A_DAY,
+  SECONDS_IN_A_MONTH,
+  SECONDS_IN_A_WEEK,
+  SECONDS_IN_A_YEAR,
+} from "./consts";
+
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { toLegacyPublicKey } from "./utils/compat";
 import { fromLegacyPublicKey } from "@solana/compat";
@@ -1841,6 +1854,171 @@ export class Farms {
 
       return FarmState.decode(Buffer.from(info.data[0], "base64"));
     });
+  }
+
+  async calculateFarmIncentivesApy(
+    farm: FarmAndKey,
+    getPriceByTokenMintDecimal: (mint: Address) => Promise<Decimal>,
+    stakedTokenPrice: Decimal,
+    stakedTokenDecimals: number,
+  ): Promise<FarmIncentives> {
+    const { farmState } = farm;
+    const { token, totalActiveStakeScaled, rewardInfos, delegateAuthority } =
+      farmState;
+    const totalActiveStakeAmount = lamportsToNumberDecimal(
+      delegateAuthority === DEFAULT_PUBLIC_KEY
+        ? scaleDownWads(totalActiveStakeScaled)
+        : totalActiveStakeScaled.toNumber(),
+      stakedTokenDecimals,
+    );
+
+    const totalActiveStakeValue = totalActiveStakeAmount.mul(stakedTokenPrice);
+
+    const formattedRewardInfos: IncentiveRewardStats[] = await Promise.all(
+      rewardInfos
+        .filter((reward) => isValidPubkey(reward.token.mint))
+        .map(async (reward) => {
+          const { token: rewardToken } = reward;
+          const rewardTokenPrice = await getPriceByTokenMintDecimal(
+            rewardToken.mint,
+          );
+
+          const { dailyRewards, weeklyRewards, monthlyRewards, yearlyRewards } =
+            this.calculateRewardsForPeriods(
+              reward,
+              reward.rewardType,
+              new Decimal(farmState.totalStakedAmount.toString()),
+              farmState.token.decimals.toNumber(),
+              rewardTokenPrice,
+            );
+
+          const rewardValue = yearlyRewards.mul(rewardTokenPrice);
+          const incentivesApy = rewardValue
+            .div(totalActiveStakeValue)
+            .toNumber();
+          console.log(`rewardValue ${rewardValue.toString()}`);
+          console.log(
+            `totalActiveStakeValue ${totalActiveStakeValue.toString()}`,
+          );
+          console.log(`totalActiveStakeAmount ${totalActiveStakeAmount}`);
+
+          return {
+            rewardMint: rewardToken.mint,
+            value: rewardValue,
+            yearlyRewards,
+            monthlyRewards,
+            weeklyRewards,
+            dailyRewards,
+            incentivesApy,
+            hasRewardAvailable: reward.rewardsAvailable.gtn(0),
+          };
+        }),
+    );
+
+    // APYS
+    const totalIncentivesApy = formattedRewardInfos.reduce((sum, reward) => {
+      sum += reward.hasRewardAvailable ? reward.incentivesApy : 0;
+      return sum;
+    }, 0);
+
+    return {
+      incentivesStats: formattedRewardInfos,
+      totalIncentivesApy,
+    };
+  }
+
+  calculateRewardsForPeriods(
+    reward: RewardInfo,
+    rewardType: number,
+    totalStakedAmount: Decimal,
+    stakedTokenDecimals: number,
+    price: Decimal,
+  ): {
+    dailyRewards: Decimal;
+    weeklyRewards: Decimal;
+    monthlyRewards: Decimal;
+    yearlyRewards: Decimal;
+  } {
+    if (reward.rewardsAvailable.eqn(0)) {
+      return {
+        dailyRewards: new Decimal(0),
+        weeklyRewards: new Decimal(0),
+        monthlyRewards: new Decimal(0),
+        yearlyRewards: new Decimal(0),
+      };
+    }
+
+    // Find the more recent timestamp and rps
+    let rewardAmountPerUnit = this.getRewardPerTimeUnitSecond(reward);
+
+    if (rewardType === RewardType.Constant.discriminator) {
+      const stakedAmountNumber = lamportsToNumberDecimal(
+        totalStakedAmount,
+        stakedTokenDecimals,
+      );
+      const jtoTokens = collToLamportsDecimal(
+        stakedAmountNumber,
+        stakedTokenDecimals,
+      ).mul(price);
+      rewardAmountPerUnit = rewardAmountPerUnit.mul(jtoTokens);
+    }
+
+    const dailyReward = rewardAmountPerUnit.mul(SECONDS_IN_A_DAY);
+    const weeklyReward = rewardAmountPerUnit.mul(SECONDS_IN_A_WEEK);
+    const monthlyReward = rewardAmountPerUnit.mul(SECONDS_IN_A_MONTH);
+    const yearlyReward = rewardAmountPerUnit.mul(SECONDS_IN_A_YEAR);
+
+    return {
+      dailyRewards: dailyReward,
+      weeklyRewards: weeklyReward,
+      monthlyRewards: monthlyReward,
+      yearlyRewards: yearlyReward,
+    };
+  }
+
+  getRewardPerTimeUnitSecond(reward: RewardInfo) {
+    const now = new Decimal(new Date().getTime()).div(1000);
+    let rewardPerTimeUnitSecond = new Decimal(0);
+    for (let i = 0; i < reward.rewardScheduleCurve.points.length - 1; i++) {
+      const { tsStart: tsStartThisPoint, rewardPerTimeUnit } =
+        reward.rewardScheduleCurve.points[i];
+      const { tsStart: tsStartNextPoint } =
+        reward.rewardScheduleCurve.points[i + 1];
+
+      const thisPeriodStart = new Decimal(tsStartThisPoint.toString());
+      const thisPeriodEnd = new Decimal(tsStartNextPoint.toString());
+      const rps = new Decimal(rewardPerTimeUnit.toString());
+
+      // Rules:
+      // Period is in the past:     If we are after this period, then we don't count it
+      // Period is in the future:   If we are before this period, we count it fully
+      // Period is in the present:  If we are during this period, we count it partially
+      // Period is past locking cutoff: We dismiss it
+
+      if (thisPeriodStart <= now && thisPeriodEnd >= now) {
+        // Period is in the present:  If we are during this period, we count the reward based on it
+        rewardPerTimeUnitSecond = rps;
+        break;
+      } else if (thisPeriodStart > now && thisPeriodEnd > now) {
+        // Period is in the future: If we are before this period, we count it fully
+        rewardPerTimeUnitSecond = rps;
+        break;
+      }
+    }
+
+    const rewardTokenDecimals = reward.token.decimals.toNumber();
+    const rewardAmountPerUnitDecimals = new Decimal(10).pow(
+      reward.rewardsPerSecondDecimals.toString(),
+    );
+    const rewardAmountPerUnitLamports = new Decimal(10).pow(
+      rewardTokenDecimals.toString(),
+    );
+
+    const rpsAdjusted = new Decimal(rewardPerTimeUnitSecond.toString())
+      .div(rewardAmountPerUnitDecimals)
+      .div(rewardAmountPerUnitLamports);
+
+    return rewardPerTimeUnitSecond ? rpsAdjusted : new Decimal(0);
   }
 }
 

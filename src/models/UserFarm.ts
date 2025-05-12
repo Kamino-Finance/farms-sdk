@@ -23,3 +23,19 @@ export type PendingReward = {
   cumulatedPendingRewards: Decimal;
   pendingRewardsByDelegatee: Map<Address, Decimal>;
 };
+
+export type IncentiveRewardStats = {
+  rewardMint: Address;
+  value: Decimal;
+  yearlyRewards: Decimal;
+  monthlyRewards: Decimal;
+  weeklyRewards: Decimal;
+  dailyRewards: Decimal;
+  incentivesApy: number;
+  hasRewardAvailable: boolean;
+};
+
+export type FarmIncentives = {
+  incentivesStats: IncentiveRewardStats[];
+  totalIncentivesApy: number;
+};

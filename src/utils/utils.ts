@@ -20,6 +20,7 @@ import { getCreateAccountInstruction } from "@solana-program/system";
 import { PROGRAM_ID as FARMS_PROGRAM_ID } from "../@codegen/farms/programId";
 import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
 import BN from "bn.js";
+import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
 export const WAD = new Decimal("1".concat(Array(18 + 1).join("0")));
 
@@ -417,4 +418,12 @@ export function noopProfiledFunctionExecution(
   promise: Promise<any>,
 ): Promise<any> {
   return promise;
+}
+
+export function isValidPubkey(address?: Address): address is Address {
+  if (!address) {
+    return false;
+  }
+
+  return address !== DEFAULT_PUBLIC_KEY;
 }
