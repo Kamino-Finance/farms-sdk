@@ -67,6 +67,8 @@ import {
   DepositToFarmVaultAccounts,
   DepositToFarmVaultArgs,
   depositToFarmVault as depositToFarmVaultIx,
+  UpdateSecondDelegatedAuthorityAccounts,
+  updateSecondDelegatedAuthority as updateSecondDelegatedAuthorityIx,
 } from "../@codegen/farms/instructions";
 import {
   DepositCapAmount,
@@ -136,6 +138,22 @@ export function updateGlobalConfigAdmin(
   };
 
   return updateGlobalConfigAdminIx(accounts);
+}
+
+export function updateSecondDelegatedAuthority(
+  globalConfigAdmin: TransactionSigner,
+  globalConfig: Address,
+  farm: Address,
+  newSecondAuthority: Address,
+): IInstruction {
+  let accounts: UpdateSecondDelegatedAuthorityAccounts = {
+    globalAdmin: globalConfigAdmin,
+    farmState: farm,
+    globalConfig,
+    newSecondDelegatedAuthority: newSecondAuthority,
+  };
+
+  return updateSecondDelegatedAuthorityIx(accounts);
 }
 
 export function updateFarmAdmin(

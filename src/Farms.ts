@@ -1691,6 +1691,20 @@ export class Farms {
     return farmOperations.updateGlobalConfigAdmin(admin, globalConfig);
   }
 
+  async updateSecondDelegatedAuthority(
+    admin: TransactionSigner,
+    globalConfig: Address,
+    farm: Address,
+    newSecondDelegatedAuthority: Address,
+  ): Promise<IInstruction> {
+    return farmOperations.updateSecondDelegatedAuthority(
+      admin,
+      globalConfig,
+      farm,
+      newSecondDelegatedAuthority,
+    );
+  }
+
   async updateFarmAdminIx(
     admin: TransactionSigner,
     farm: Address,
