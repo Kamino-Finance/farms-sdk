@@ -80,6 +80,12 @@ import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { toLegacyPublicKey } from "./utils/compat";
 import { fromLegacyPublicKey } from "@solana/compat";
 import { getScopePricesFromFarm } from "./utils/option";
+import {
+  getRewardsApyForReserve,
+  getRewardsApyForStrategy,
+  ReserveIncentives,
+} from "./utils/apy";
+import { Connection } from "@solana/web3.js";
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
@@ -738,6 +744,32 @@ export class Farms {
     }
 
     return userFarms;
+  }
+
+  async getRewardsAPYForStrategy(
+    strategy: Address,
+    rpcEndpoint: string,
+  ): Promise<FarmIncentives> {
+    const legacyConnection = new Connection(rpcEndpoint);
+    const farmIncentives = await getRewardsApyForStrategy(
+      this.getConnection(),
+      legacyConnection,
+      strategy,
+    );
+    return farmIncentives;
+  }
+
+  async getRewardsAPYsForReserve(
+    reserve: Address,
+    rpcEndpoint: string,
+  ): Promise<ReserveIncentives> {
+    const legacyConnection = new Connection(rpcEndpoint);
+    const reserveIncentives = await getRewardsApyForReserve(
+      this.getConnection(),
+      legacyConnection,
+      reserve,
+    );
+    return reserveIncentives;
   }
 
   async getAllFarmsForUserMultiState(
