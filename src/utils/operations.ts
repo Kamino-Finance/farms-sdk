@@ -85,6 +85,7 @@ import {
   UpdatePendingFarmAdmin,
   UpdateRewardScheduleCurvePoints,
   UpdateStrategyId,
+  UpdateVaultId,
   WithdrawAuthority,
   WithdrawCooldownPeriod,
 } from "../@codegen/farms/types/FarmConfigOption";
@@ -345,6 +346,7 @@ export function updateFarmConfig(
     case SlashedAmountSpillAddress.discriminator:
     case WithdrawAuthority.discriminator:
     case UpdateDelegatedRpsAdmin.discriminator:
+    case UpdateVaultId.discriminator:
       data = Buffer.from(addressEncoder.encode(value as Address));
       break;
     case UpdateRewardScheduleCurvePoints.discriminator:
