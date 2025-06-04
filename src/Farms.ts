@@ -2,6 +2,7 @@ import BN from "bn.js";
 import {
   Address,
   address,
+  Base58EncodedBytes,
   GetProgramAccountsDatasizeFilter,
   GetProgramAccountsMemcmpFilter,
   IInstruction,
@@ -126,7 +127,13 @@ export class Farms {
       | GetProgramAccountsMemcmpFilter
     )[] = [];
 
-    filters.push({ memcmp: { bytes: user, offset: 48n, encoding: "base58" } });
+    filters.push({
+      memcmp: {
+        bytes: user.toString() as Base58EncodedBytes,
+        offset: 48n,
+        encoding: "base58",
+      },
+    });
 
     filters.push({ dataSize: BigInt(UserState.layout.span + 8) });
 
@@ -174,7 +181,7 @@ export class Farms {
             {
               memcmp: {
                 offset: 80n,
-                bytes: isFarmDelegated ? "2" : "1",
+                bytes: (isFarmDelegated ? "2" : "1") as Base58EncodedBytes,
                 encoding: "base58",
               },
             },
@@ -243,7 +250,13 @@ export class Farms {
         .getProgramAccounts(this._farmsProgramId, {
           filters: [
             { dataSize: BigInt(UserState.layout.span + 8) },
-            { memcmp: { offset: 8n + 8n, bytes: farm, encoding: "base58" } },
+            {
+              memcmp: {
+                offset: 8n + 8n,
+                bytes: farm.toString() as Base58EncodedBytes,
+                encoding: "base58",
+              },
+            },
           ],
           encoding: "base64",
         })
@@ -263,7 +276,13 @@ export class Farms {
       | GetProgramAccountsMemcmpFilter
     )[] = [];
 
-    filters.push({ memcmp: { bytes: mint, offset: 72n, encoding: "base58" } });
+    filters.push({
+      memcmp: {
+        bytes: mint.toString() as Base58EncodedBytes,
+        offset: 72n,
+        encoding: "base58",
+      },
+    });
 
     filters.push({ dataSize: BigInt(FarmState.layout.span + 8) });
 
