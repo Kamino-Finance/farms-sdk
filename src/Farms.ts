@@ -1742,7 +1742,7 @@ export class Farms {
     return farmOperations.updateGlobalConfigAdmin(admin, globalConfig);
   }
 
-  async updateSecondDelegatedAuthority(
+  async updateSecondDelegatedAuthorityIx(
     admin: TransactionSigner,
     globalConfig: Address,
     farm: Address,
