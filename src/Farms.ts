@@ -17,7 +17,6 @@ import {
 } from "@solana/kit";
 import {
   calculateCurrentRewardPerToken,
-  calculateNewRewardToBeIssued,
   calculatePendingRewards,
   checkIfAccountExists,
   isValidPubkey,
@@ -33,9 +32,9 @@ import {
   GlobalConfigFlagValueType,
   lamportsToCollDecimal,
   scaleDownWads,
-  scopePriceForFarm,
   SIZE_FARM_STATE,
   SIZE_GLOBAL_CONFIG,
+  decimalToBN,
 } from "./utils";
 import {
   FarmIncentives,
@@ -59,12 +58,6 @@ import {
 import { PROGRAM_ID } from "./@codegen/farms/programId";
 import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
 import { chunks } from "./utils/arrayUtils";
-import {
-  KaminoMarket,
-  lamportsToNumberDecimal,
-  Position,
-  U64_MAX,
-} from "@kamino-finance/klend-sdk";
 import { batchFetch } from "./utils/batch";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
@@ -78,15 +71,10 @@ import {
 } from "./consts";
 
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { toLegacyPublicKey } from "./utils/compat";
-import { fromLegacyPublicKey } from "@solana/compat";
 import { getScopePricesFromFarm } from "./utils/option";
-import {
-  getRewardsApyForReserve,
-  getRewardsApyForStrategy,
-  ReserveIncentives,
-} from "./utils/apy";
+import { getRewardsApyForStrategy } from "./utils/apy";
 import { Connection } from "@solana/web3.js";
+import { U64_MAX } from "./utils/consts";
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
@@ -542,7 +530,7 @@ export class Farms {
         farmState.scopePrices,
       );
       if (!oraclePrices) {
-        throw new Error("Error fetching oracle prices");
+        throw new Error("Error fetching oracle prces");
       }
     }
 
@@ -776,19 +764,6 @@ export class Farms {
       strategy,
     );
     return farmIncentives;
-  }
-
-  async getRewardsAPYsForReserve(
-    reserve: Address,
-    rpcEndpoint: string,
-  ): Promise<ReserveIncentives> {
-    const legacyConnection = new Connection(rpcEndpoint);
-    const reserveIncentives = await getRewardsApyForReserve(
-      this.getConnection(),
-      legacyConnection,
-      reserve,
-    );
-    return reserveIncentives;
   }
 
   async getAllFarmsForUserMultiState(
@@ -1112,7 +1087,7 @@ export class Farms {
       farmVault,
       stakeTokenMint,
       scopePrices,
-      new BN(amountLamports.toString()),
+      decimalToBN(amountLamports),
     );
     return ix;
   }
@@ -1134,7 +1109,7 @@ export class Farms {
       userStatePk,
       farm,
       scopePrices,
-      new BN(amountLamports.toString()),
+      decimalToBN(amountLamports),
     );
     return ix;
   }
@@ -1930,7 +1905,7 @@ export class Farms {
     const { farmState } = farm;
     const { token, totalActiveStakeScaled, rewardInfos, delegateAuthority } =
       farmState;
-    const totalActiveStakeAmount = lamportsToNumberDecimal(
+    const totalActiveStakeAmount = lamportsToCollDecimal(
       delegateAuthority === DEFAULT_PUBLIC_KEY
         ? scaleDownWads(totalActiveStakeScaled)
         : totalActiveStakeScaled.toNumber(),
@@ -2017,7 +1992,7 @@ export class Farms {
     let rewardAmountPerUnit = this.getRewardPerTimeUnitSecond(reward);
 
     if (rewardType === RewardType.Constant.discriminator) {
-      const stakedAmountNumber = lamportsToNumberDecimal(
+      const stakedAmountNumber = lamportsToCollDecimal(
         totalStakedAmount,
         stakedTokenDecimals,
       );
@@ -2126,69 +2101,3 @@ export const calcAvgBoost = (dollarValueBoosts: [Decimal, Decimal][]) => {
   const avgBoost = totalBoostedDollarSumSum.div(totalDollarSum);
   return avgBoost;
 };
-
-export const calculatePointsPerDay = (
-  kaminoMarket: KaminoMarket,
-  user: Address,
-  mint: Address,
-  farmPubkeyToFarmStates: Map<Address, FarmState>,
-  pointsMint: Address,
-  pointsFactor: number,
-  position: Position,
-  isCollateral: boolean,
-  finalBoost: Decimal,
-  scopePrices: OraclePrices | null,
-) => {
-  const reserve = kaminoMarket.getReserveByMint(toLegacyPublicKey(mint))!;
-  const farmStateKey = isCollateral
-    ? fromLegacyPublicKey(reserve.state.farmCollateral)
-    : fromLegacyPublicKey(reserve.state.farmDebt);
-  const farmState = farmPubkeyToFarmStates.get(farmStateKey);
-  if (!farmState) {
-    return new Decimal(0);
-  }
-  const lastIssuanceTs = farmState.rewardInfos[0].lastIssuanceTs.toNumber();
-  const lastIssuanceTsPlusOneDay = new Decimal(lastIssuanceTs + 86400);
-  const rewardIndex = farmState.rewardInfos.findIndex(
-    (r: RewardInfo) => r.token.mint === pointsMint,
-  );
-
-  const totalRewardsToIssuedForEntireFarm = calculateNewRewardToBeIssued(
-    farmState,
-    lastIssuanceTsPlusOneDay,
-    rewardIndex,
-    scopePriceForFarm(farmState, scopePrices),
-  ).div(pointsFactor);
-
-  const mintDecimals = reserve.state.liquidity.mintDecimals.toNumber();
-  const totalStakedInFarm = lamportsToNumberDecimal(
-    new Decimal(farmState.totalStakedAmount.toString()),
-    mintDecimals,
-  );
-  const userTokenAmountStakedInFarm = lamportsToNumberDecimal(
-    position.amount,
-    mintDecimals,
-  );
-  const userBoostedStakedAmount = userTokenAmountStakedInFarm.mul(finalBoost);
-
-  const pointsPerDayThisTokenInThisLoan = totalRewardsToIssuedForEntireFarm.mul(
-    userBoostedStakedAmount.div(totalStakedInFarm),
-  );
-
-  // console.log("Reserve", parseTokenSymbol(reserve.state.config.tokenInfo.name));
-  // console.log("TotalStakedInFarm", totalStakedInFarm);
-  // console.log("UserStakedInFarm", userTokenAmountStakedInFarm);
-  // console.log("UserBoostedStakedInFarm", userBoostedStakedAmount);
-  // console.log("User", user.toString());
-  // console.log("-----");
-
-  return pointsPerDayThisTokenInThisLoan;
-};
-
-const newUserPointsBreakdown = (): UserPointsBreakdown => ({
-  totalPoints: new Decimal(0),
-  currentBoost: new Decimal(0),
-  currentPointsPerDay: new Decimal(0),
-  perPositionBoost: new Map<Address, Decimal>(),
-  perPositionPointsPerDay: new Map<Address, Decimal>(),
-});

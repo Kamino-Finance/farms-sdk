@@ -29,18 +29,26 @@ export type GlobalConfigFlagValueType = "number" | "bool" | "publicKey";
 const addressEncoder = getAddressEncoder();
 
 export function collToLamportsDecimal(
-  amount: Decimal,
+  amount: Decimal.Value,
   decimals: number,
 ): Decimal {
-  let factor = Math.pow(10, decimals);
-  return amount.mul(factor);
+  const factor = Math.pow(10, decimals);
+  return new Decimal(amount).mul(factor);
 }
 export function lamportsToCollDecimal(
-  amount: Decimal,
+  amount: Decimal.Value,
   decimals: number,
 ): Decimal {
-  let factor = Math.pow(10, decimals);
-  return amount.div(factor);
+  const factor = Math.pow(10, decimals);
+  return new Decimal(amount).div(factor);
+}
+
+export function decimalToBN(value: Decimal): BN {
+  // Note: the `Decimal.toString()` can return exponential notation (e.g. "1e9") for large numbers. This notation is
+  // not accepted by `BN` constructor (i.e. invalid character "e"). Hence, we use `Decimal.toFixed()` (which is
+  // different than `number.toFixed()` - it will not do any rounding, just render a normal notation).
+  // see https://mikemcl.github.io/decimal.js/#toFixed
+  return new BN(value.toFixed());
 }
 
 export interface GlobalConfigAccounts {
