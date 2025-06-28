@@ -1896,32 +1896,23 @@ export class Farms {
     });
   }
 
-  async calculateFarmIncentivesApy(
-    farm: FarmAndKey,
+  private async processRewardInfos(
+    farmState: FarmState,
+    totalActiveStakeValue: Decimal,
+    totalActiveStakeAmount: Decimal,
     getPriceByTokenMintDecimal: (mint: Address) => Promise<Decimal>,
-    stakedTokenPrice: Decimal,
-    stakedTokenDecimals: number,
-  ): Promise<FarmIncentives> {
-    const { farmState } = farm;
-    const { token, totalActiveStakeScaled, rewardInfos, delegateAuthority } =
-      farmState;
-    const totalActiveStakeAmount = lamportsToCollDecimal(
-      delegateAuthority === DEFAULT_PUBLIC_KEY
-        ? scaleDownWads(totalActiveStakeScaled)
-        : totalActiveStakeScaled.toNumber(),
-      stakedTokenDecimals,
-    );
-
-    const totalActiveStakeValue = totalActiveStakeAmount.mul(stakedTokenPrice);
-
-    const formattedRewardInfos: IncentiveRewardStats[] = await Promise.all(
-      rewardInfos
+    pricesMap?: Map<Address, Decimal>,
+    verbose: boolean = false,
+  ): Promise<IncentiveRewardStats[]> {
+    return await Promise.all(
+      farmState.rewardInfos
         .filter((reward) => isValidPubkey(reward.token.mint))
         .map(async (reward) => {
           const { token: rewardToken } = reward;
-          const rewardTokenPrice = await getPriceByTokenMintDecimal(
-            rewardToken.mint,
-          );
+          const cachedRewardTokenPrice = pricesMap?.get(rewardToken.mint);
+          const rewardTokenPrice = cachedRewardTokenPrice
+            ? cachedRewardTokenPrice
+            : await getPriceByTokenMintDecimal(rewardToken.mint);
 
           const { dailyRewards, weeklyRewards, monthlyRewards, yearlyRewards } =
             this.calculateRewardsForPeriods(
@@ -1936,11 +1927,14 @@ export class Farms {
           const incentivesApy = rewardValue
             .div(totalActiveStakeValue)
             .toNumber();
-          console.log(`rewardValue ${rewardValue.toString()}`);
-          console.log(
-            `totalActiveStakeValue ${totalActiveStakeValue.toString()}`,
-          );
-          console.log(`totalActiveStakeAmount ${totalActiveStakeAmount}`);
+
+          if (verbose) {
+            console.log(`rewardValue ${rewardValue.toString()}`);
+            console.log(
+              `totalActiveStakeValue ${totalActiveStakeValue.toString()}`,
+            );
+            console.log(`totalActiveStakeAmount ${totalActiveStakeAmount}`);
+          }
 
           return {
             rewardMint: rewardToken.mint,
@@ -1953,6 +1947,89 @@ export class Farms {
             hasRewardAvailable: reward.rewardsAvailable.gtn(0),
           };
         }),
+    );
+  }
+
+  async calculateFarmIncentivesApy(
+    farm: FarmAndKey,
+    getPriceByTokenMintDecimal: (mint: Address) => Promise<Decimal>,
+    stakedTokenPrice: Decimal,
+    stakedTokenDecimals: number,
+    pricesMap?: Map<Address, Decimal>,
+  ): Promise<FarmIncentives> {
+    const { farmState } = farm;
+    const { totalActiveStakeScaled, delegateAuthority } = farmState;
+    const totalActiveStakeAmount = lamportsToCollDecimal(
+      delegateAuthority === DEFAULT_PUBLIC_KEY
+        ? scaleDownWads(totalActiveStakeScaled)
+        : totalActiveStakeScaled.toNumber(),
+      stakedTokenDecimals,
+    );
+
+    const totalActiveStakeValue = totalActiveStakeAmount.mul(stakedTokenPrice);
+
+    const formattedRewardInfos = await this.processRewardInfos(
+      farmState,
+      totalActiveStakeValue,
+      totalActiveStakeAmount,
+      getPriceByTokenMintDecimal,
+      pricesMap,
+      true, // verbose logging for calculateFarmIncentivesApy
+    );
+
+    // APYS
+    const totalIncentivesApy = formattedRewardInfos.reduce((sum, reward) => {
+      sum += reward.hasRewardAvailable ? reward.incentivesApy : 0;
+      return sum;
+    }, 0);
+
+    return {
+      incentivesStats: formattedRewardInfos,
+      totalIncentivesApy,
+    };
+  }
+
+  /**
+   * Simulates the farm incentives APY after a stake or unstake operation.
+   * @param farm - The farm to simulate the incentives APY for.
+   * @param stakedTokenDelta - The difference between the current staked amount and the new staked amount (if positive, it's a stake, if negative, it's an unstake)
+   * @param getPriceByTokenMintDecimal - A function to get the price of a token mint.
+   * @param stakedTokenPrice - The price of the staked token.
+   * @param stakedTokenDecimals - The decimals of the staked token.
+   * @param pricesMap - A map of token mints to their prices.
+   * @param verbose - Whether to log verbose information.
+   * @returns The farm incentives APY after the stake or unstake operation.
+   */
+  async simulateFarmIncentivesApy(
+    farm: FarmAndKey,
+    stakedTokenDelta: Decimal,
+    getPriceByTokenMintDecimal: (mint: Address) => Promise<Decimal>,
+    stakedTokenPrice: Decimal,
+    stakedTokenDecimals: number,
+    pricesMap?: Map<Address, Decimal>,
+    verbose: boolean = false,
+  ): Promise<FarmIncentives> {
+    const { farmState } = farm;
+    const { totalActiveStakeScaled, delegateAuthority } = farmState;
+    const totalActiveStakeAmount = lamportsToCollDecimal(
+      delegateAuthority === DEFAULT_PUBLIC_KEY
+        ? scaleDownWads(totalActiveStakeScaled)
+        : totalActiveStakeScaled.toNumber(),
+      stakedTokenDecimals,
+    );
+    const simulatedTotalActiveStakeAmount =
+      totalActiveStakeAmount.plus(stakedTokenDelta);
+
+    const simulatedTotalActiveStakeValue =
+      simulatedTotalActiveStakeAmount.mul(stakedTokenPrice);
+
+    const formattedRewardInfos = await this.processRewardInfos(
+      farmState,
+      simulatedTotalActiveStakeValue,
+      simulatedTotalActiveStakeAmount,
+      getPriceByTokenMintDecimal,
+      pricesMap,
+      verbose,
     );
 
     // APYS

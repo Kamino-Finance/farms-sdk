@@ -39,6 +39,7 @@ export async function getFarmIncentives(
   farm: Address,
   stakedTokenPrice: Decimal,
   stakedTokenMintDecimals: number,
+  pricesMap?: Map<Address, Decimal>,
 ): Promise<FarmIncentives> {
   const farmState = await FarmState.fetch(
     farmsClient.getConnection(),
@@ -50,12 +51,29 @@ export async function getFarmIncentives(
     throw new Error(`Farm state not found for farm: ${farm}`);
   }
 
-  const farmsIncentives = await farmsClient.calculateFarmIncentivesApy(
+  return await getFarmIncentivesWithExistentState(
+    farmsClient,
+    farm,
+    farmState,
+    stakedTokenPrice,
+    stakedTokenMintDecimals,
+    pricesMap,
+  );
+}
+
+export async function getFarmIncentivesWithExistentState(
+  farmsClient: Farms,
+  farm: Address,
+  farmState: FarmState,
+  stakedTokenPrice: Decimal,
+  stakedTokenMintDecimals: number,
+  pricesMap?: Map<Address, Decimal>,
+): Promise<FarmIncentives> {
+  return await farmsClient.calculateFarmIncentivesApy(
     { farmState, key: farm },
     getPriceForTokenMint,
     stakedTokenPrice,
     stakedTokenMintDecimals,
+    pricesMap,
   );
-
-  return farmsIncentives;
 }
