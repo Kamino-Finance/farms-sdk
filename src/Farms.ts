@@ -2096,11 +2096,14 @@ export class Farms {
   getRewardPerTimeUnitSecond(reward: RewardInfo) {
     const now = new Decimal(new Date().getTime()).div(1000);
     let rewardPerTimeUnitSecond = new Decimal(0);
-    for (let i = 0; i < reward.rewardScheduleCurve.points.length - 1; i++) {
+    for (let i = 0; i < reward.rewardScheduleCurve.points.length; i++) {
       const { tsStart: tsStartThisPoint, rewardPerTimeUnit } =
         reward.rewardScheduleCurve.points[i];
-      const { tsStart: tsStartNextPoint } =
-        reward.rewardScheduleCurve.points[i + 1];
+
+      const isLastPoint = i === reward.rewardScheduleCurve.points.length - 1;
+      const tsStartNextPoint = isLastPoint
+        ? U64_MAX
+        : reward.rewardScheduleCurve.points[i + 1].tsStart;
 
       const thisPeriodStart = new Decimal(tsStartThisPoint.toString());
       const thisPeriodEnd = new Decimal(tsStartNextPoint.toString());
