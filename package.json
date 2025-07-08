@@ -49,6 +49,7 @@
     "@solana/kit": "^2.1.1",
     "@solana/sysvars": "^2.1.1",
     "@solana/web3.js": "^1.98.2",
+    "@solana/buffer-layout": "^4.0.1",
     "bn.js": "^5.2.1",
     "decimal.js": "^10.4.3"
   },
