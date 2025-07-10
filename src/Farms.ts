@@ -193,10 +193,19 @@ export class Farms {
    * for await (const userStates of userStateGenerator) {
    *   console.log('got a batch of user states:', userStates.length);
    * }
+   * @param isFarmDelegated - Optional filter to get only user states for farms that are delegated or not
    */
-  async *batchGetAllUserStates(): AsyncGenerator<UserAndKey[], void, unknown> {
+  async *batchGetAllUserStates(
+    isFarmDelegated?: boolean,
+  ): AsyncGenerator<UserAndKey[], void, unknown> {
     // Get all farms first and then get user states for each farm
-    const farms = await this.getAllFarmStates();
+    let farms = await this.getAllFarmStates();
+
+    if (isFarmDelegated !== undefined) {
+      farms = farms.filter(
+        (farm) => Boolean(farm.farmState.isFarmDelegated) === isFarmDelegated,
+      );
+    }
 
     for (const farm of farms) {
       try {
