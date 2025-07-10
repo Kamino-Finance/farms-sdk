@@ -195,40 +195,26 @@ export class Farms {
    * }
    */
   async *batchGetAllUserStates(): AsyncGenerator<UserAndKey[], void, unknown> {
-    const userStatePubkeys = await this._connection
-      .getProgramAccounts(this._farmsProgramId, {
-        filters: [{ dataSize: BigInt(UserState.layout.span + 8) }],
-        dataSlice: { offset: 0, length: 0 },
-        encoding: "base64",
-      })
-      .send();
+    // Get all farms first and then get user states for each farm
+    const farms = await this.getAllFarmStates();
 
-    for (const batch of chunks(
-      userStatePubkeys.map((x) => x.pubkey),
-      100,
-    )) {
-      const userStateAccounts = await this._connection
-        .getMultipleAccounts(batch)
-        .send();
-      const userStateBatch: UserAndKey[] = [];
-      for (let i = 0; i < userStateAccounts.value.length; i++) {
-        const userState = userStateAccounts.value[i];
-        const pubkey = batch[i];
-        if (userState === null) {
-          continue;
+    for (const farm of farms) {
+      try {
+        const farmUserStates = await this.getAllUserStatesForFarm(farm.key);
+        if (farmUserStates.length > 0) {
+          // Process in smaller batches to avoid memory issues
+          for (const batch of chunks(farmUserStates, 100)) {
+            yield batch;
+          }
         }
-
-        const userStateAccount = UserState.decode(
-          Buffer.from(userState.data[0], "base64"),
+      } catch (error) {
+        console.error(
+          `Error fetching user states for farm ${farm.key}:`,
+          error,
         );
-
-        if (!userStateAccount) {
-          throw Error(`Could not decode user state account ${pubkey}`);
-        }
-
-        userStateBatch.push({ key: pubkey, userState: userStateAccount });
+        // Continue with next farm even if one fails
+        continue;
       }
-      yield userStateBatch;
     }
   }
 

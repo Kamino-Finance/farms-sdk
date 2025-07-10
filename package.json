@@ -45,13 +45,11 @@
     "@solana-program/system": "^0.7.0",
     "@solana-program/token": "^0.5.1",
     "@solana-program/token-2022": "^0.4.2",
-    "@solana/buffer-layout": "^4.0.1",
     "@solana/compat": "^2.1.1",
     "@solana/kit": "^2.1.1",
     "@solana/sysvars": "^2.1.1",
     "@solana/web3.js": "^1.98.2",
     "bn.js": "^5.2.1",
-    "buffer-layout": "^1.2.2",
     "decimal.js": "^10.4.3"
   },
   "publishConfig": {
