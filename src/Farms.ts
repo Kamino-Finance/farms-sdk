@@ -75,6 +75,8 @@ import { getScopePricesFromFarm } from "./utils/option";
 import { getRewardsApyForStrategy } from "./utils/apy";
 import { Connection } from "@solana/web3.js";
 import { U64_MAX } from "./utils/consts";
+import { decompress } from "fzstd";
+import { backOff, IBackOffOptions } from "exponential-backoff";
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
@@ -88,6 +90,15 @@ export interface RewardCurvePoint {
   startTs: number;
   rps: number;
 }
+
+const SOLANA_API_RETRY: Partial<IBackOffOptions> = {
+  maxDelay: 10 * 1000,
+  numOfAttempts: 3,
+  retry: (e: any, attemptNumber: number) => {
+    // silent retry
+    return true;
+  },
+};
 
 export class Farms {
   private readonly _connection: Rpc<SolanaRpcApi>;
@@ -209,7 +220,11 @@ export class Farms {
 
     for (const farm of farms) {
       try {
-        const farmUserStates = await this.getAllUserStatesForFarm(farm.key);
+        const farmUserStates = await backOff(
+          () => this.getAllUserStatesForFarm(farm.key),
+          SOLANA_API_RETRY,
+        );
+
         if (farmUserStates.length > 0) {
           // Process in smaller batches to avoid memory issues
           for (const batch of chunks(farmUserStates, 100)) {
@@ -241,12 +256,15 @@ export class Farms {
               },
             },
           ],
-          encoding: "base64",
+          encoding: "base64+zstd",
         })
         .send()
     ).map((x) => {
+      const compressedData = Buffer.from(x.account.data[0], "base64");
+      const decompressedData = decompress(compressedData);
+
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
+        userState: UserState.decode(Buffer.from(decompressedData)),
         key: x.pubkey,
       };
       return userAndKey;
