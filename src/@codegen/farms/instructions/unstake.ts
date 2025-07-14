@@ -26,11 +26,14 @@ export interface UnstakeAccounts {
   scopePrices: Option<Address>
 }
 
-export const layout = borsh.struct([borsh.u128("stakeSharesScaled")])
+export const layout = borsh.struct<UnstakeArgs>([
+  borsh.u128("stakeSharesScaled"),
+])
 
 export function unstake(
   args: UnstakeArgs,
   accounts: UnstakeAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -40,6 +43,7 @@ export function unstake(
     isSome(accounts.scopePrices)
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([90, 95, 107, 42, 205, 124, 50, 225])
   const buffer = Buffer.alloc(1000)

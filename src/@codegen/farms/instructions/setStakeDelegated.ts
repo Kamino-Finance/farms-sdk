@@ -25,11 +25,14 @@ export interface SetStakeDelegatedAccounts {
   farmState: Address
 }
 
-export const layout = borsh.struct([borsh.u64("newAmount")])
+export const layout = borsh.struct<SetStakeDelegatedArgs>([
+  borsh.u64("newAmount"),
+])
 
 export function setStakeDelegated(
   args: SetStakeDelegatedArgs,
   accounts: SetStakeDelegatedAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -40,6 +43,7 @@ export function setStakeDelegated(
     },
     { address: accounts.userState, role: 1 },
     { address: accounts.farmState, role: 1 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([73, 171, 184, 75, 30, 56, 198, 223])
   const buffer = Buffer.alloc(1000)

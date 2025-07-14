@@ -30,11 +30,12 @@ export interface StakeAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct([borsh.u64("amount")])
+export const layout = borsh.struct<StakeArgs>([borsh.u64("amount")])
 
 export function stake(
   args: StakeArgs,
   accounts: StakeAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -48,6 +49,7 @@ export function stake(
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([206, 176, 202, 18, 200, 209, 179, 108])
   const buffer = Buffer.alloc(1000)

@@ -29,6 +29,7 @@ export interface InitializeFarmAccounts {
 
 export function initializeFarm(
   accounts: InitializeFarmAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -45,6 +46,7 @@ export function initializeFarm(
     { address: accounts.tokenProgram, role: 0 },
     { address: accounts.systemProgram, role: 0 },
     { address: accounts.rent, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([252, 28, 185, 172, 244, 74, 117, 165])
   const data = identifier

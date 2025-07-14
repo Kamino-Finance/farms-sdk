@@ -24,16 +24,20 @@ export interface TransferOwnershipAccounts {
   userState: Address
 }
 
-export const layout = borsh.struct([borshAddress("newOwner")])
+export const layout = borsh.struct<TransferOwnershipArgs>([
+  borshAddress("newOwner"),
+])
 
 export function transferOwnership(
   args: TransferOwnershipArgs,
   accounts: TransferOwnershipAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
     { address: accounts.owner.address, role: 2, signer: accounts.owner },
     { address: accounts.userState, role: 1 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([65, 177, 215, 73, 53, 45, 99, 47])
   const buffer = Buffer.alloc(1000)

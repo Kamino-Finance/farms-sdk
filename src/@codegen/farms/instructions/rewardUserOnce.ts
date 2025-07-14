@@ -26,7 +26,7 @@ export interface RewardUserOnceAccounts {
   userState: Address
 }
 
-export const layout = borsh.struct([
+export const layout = borsh.struct<RewardUserOnceArgs>([
   borsh.u64("rewardIndex"),
   borsh.u64("amount"),
 ])
@@ -34,6 +34,7 @@ export const layout = borsh.struct([
 export function rewardUserOnce(
   args: RewardUserOnceArgs,
   accounts: RewardUserOnceAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -44,6 +45,7 @@ export function rewardUserOnce(
     },
     { address: accounts.farmState, role: 1 },
     { address: accounts.userState, role: 1 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([219, 137, 57, 22, 94, 186, 96, 114])
   const buffer = Buffer.alloc(1000)

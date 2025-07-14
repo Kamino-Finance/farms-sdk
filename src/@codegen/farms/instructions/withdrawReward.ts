@@ -31,7 +31,7 @@ export interface WithdrawRewardAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct([
+export const layout = borsh.struct<WithdrawRewardArgs>([
   borsh.u64("amount"),
   borsh.u64("rewardIndex"),
 ])
@@ -39,6 +39,7 @@ export const layout = borsh.struct([
 export function withdrawReward(
   args: WithdrawRewardArgs,
   accounts: WithdrawRewardAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -56,6 +57,7 @@ export function withdrawReward(
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([191, 187, 176, 137, 9, 25, 187, 244])
   const buffer = Buffer.alloc(1000)

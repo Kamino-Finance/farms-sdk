@@ -22,6 +22,7 @@ export interface RefreshFarmAccounts {
 
 export function refreshFarm(
   accounts: RefreshFarmAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -29,6 +30,7 @@ export function refreshFarm(
     isSome(accounts.scopePrices)
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([214, 131, 138, 183, 144, 194, 172, 42])
   const data = identifier

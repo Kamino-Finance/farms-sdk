@@ -28,6 +28,7 @@ export interface InitializeUserAccounts {
 
 export function initializeUser(
   accounts: InitializeUserAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -43,6 +44,7 @@ export function initializeUser(
     { address: accounts.farmState, role: 1 },
     { address: accounts.systemProgram, role: 0 },
     { address: accounts.rent, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([111, 17, 185, 250, 60, 122, 38, 254])
   const data = identifier

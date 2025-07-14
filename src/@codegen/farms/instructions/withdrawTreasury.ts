@@ -29,11 +29,12 @@ export interface WithdrawTreasuryAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct([borsh.u64("amount")])
+export const layout = borsh.struct<WithdrawTreasuryArgs>([borsh.u64("amount")])
 
 export function withdrawTreasury(
   args: WithdrawTreasuryArgs,
   accounts: WithdrawTreasuryAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -48,6 +49,7 @@ export function withdrawTreasury(
     { address: accounts.treasuryVaultAuthority, role: 0 },
     { address: accounts.withdrawDestinationTokenAccount, role: 1 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([40, 63, 122, 158, 144, 216, 83, 96])
   const buffer = Buffer.alloc(1000)

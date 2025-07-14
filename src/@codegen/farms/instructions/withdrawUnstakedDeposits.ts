@@ -27,6 +27,7 @@ export interface WithdrawUnstakedDepositsAccounts {
 
 export function withdrawUnstakedDeposits(
   accounts: WithdrawUnstakedDepositsAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -37,6 +38,7 @@ export function withdrawUnstakedDeposits(
     { address: accounts.farmVault, role: 1 },
     { address: accounts.farmVaultsAuthority, role: 0 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([36, 102, 187, 49, 220, 36, 132, 67])
   const data = identifier

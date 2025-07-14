@@ -33,11 +33,14 @@ export interface HarvestRewardAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct([borsh.u64("rewardIndex")])
+export const layout = borsh.struct<HarvestRewardArgs>([
+  borsh.u64("rewardIndex"),
+])
 
 export function harvestReward(
   args: HarvestRewardArgs,
   accounts: HarvestRewardAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -54,6 +57,7 @@ export function harvestReward(
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([68, 200, 228, 233, 184, 32, 226, 188])
   const buffer = Buffer.alloc(1000)

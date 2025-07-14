@@ -23,6 +23,7 @@ export interface RefreshUserStateAccounts {
 
 export function refreshUserState(
   accounts: RefreshUserStateAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -31,6 +32,7 @@ export function refreshUserState(
     isSome(accounts.scopePrices)
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([1, 135, 12, 62, 243, 140, 77, 108])
   const data = identifier

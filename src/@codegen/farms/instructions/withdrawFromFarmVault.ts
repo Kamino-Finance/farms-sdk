@@ -28,11 +28,14 @@ export interface WithdrawFromFarmVaultAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct([borsh.u64("amount")])
+export const layout = borsh.struct<WithdrawFromFarmVaultArgs>([
+  borsh.u64("amount"),
+])
 
 export function withdrawFromFarmVault(
   args: WithdrawFromFarmVaultArgs,
   accounts: WithdrawFromFarmVaultAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -46,6 +49,7 @@ export function withdrawFromFarmVault(
     { address: accounts.farmVault, role: 1 },
     { address: accounts.farmVaultsAuthority, role: 0 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([22, 82, 128, 250, 86, 79, 124, 78])
   const buffer = Buffer.alloc(1000)

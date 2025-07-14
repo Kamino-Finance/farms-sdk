@@ -26,6 +26,7 @@ export interface WithdrawSlashedAmountAccounts {
 
 export function withdrawSlashedAmount(
   accounts: WithdrawSlashedAmountAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -35,6 +36,7 @@ export function withdrawSlashedAmount(
     { address: accounts.farmVault, role: 1 },
     { address: accounts.farmVaultsAuthority, role: 0 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([202, 217, 67, 74, 172, 22, 140, 216])
   const data = identifier

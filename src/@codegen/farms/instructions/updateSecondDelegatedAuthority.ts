@@ -24,6 +24,7 @@ export interface UpdateSecondDelegatedAuthorityAccounts {
 
 export function updateSecondDelegatedAuthority(
   accounts: UpdateSecondDelegatedAuthorityAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -35,6 +36,7 @@ export function updateSecondDelegatedAuthority(
     { address: accounts.farmState, role: 1 },
     { address: accounts.globalConfig, role: 0 },
     { address: accounts.newSecondDelegatedAuthority, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([127, 26, 6, 181, 203, 248, 117, 64])
   const data = identifier

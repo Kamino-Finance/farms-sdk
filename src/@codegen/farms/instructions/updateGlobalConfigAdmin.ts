@@ -22,6 +22,7 @@ export interface UpdateGlobalConfigAdminAccounts {
 
 export function updateGlobalConfigAdmin(
   accounts: UpdateGlobalConfigAdminAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -31,6 +32,7 @@ export function updateGlobalConfigAdmin(
       signer: accounts.pendingGlobalAdmin,
     },
     { address: accounts.globalConfig, role: 1 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([184, 87, 23, 193, 156, 238, 175, 119])
   const data = identifier

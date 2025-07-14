@@ -31,6 +31,7 @@ export interface InitializeRewardAccounts {
 
 export function initializeReward(
   accounts: InitializeRewardAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -49,6 +50,7 @@ export function initializeReward(
     { address: accounts.tokenProgram, role: 0 },
     { address: accounts.systemProgram, role: 0 },
     { address: accounts.rent, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([95, 135, 192, 196, 242, 129, 230, 68])
   const data = identifier

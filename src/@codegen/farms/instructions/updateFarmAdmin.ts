@@ -22,6 +22,7 @@ export interface UpdateFarmAdminAccounts {
 
 export function updateFarmAdmin(
   accounts: UpdateFarmAdminAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -31,6 +32,7 @@ export function updateFarmAdmin(
       signer: accounts.pendingFarmAdmin,
     },
     { address: accounts.farmState, role: 1 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([20, 37, 136, 19, 122, 239, 36, 130])
   const data = identifier

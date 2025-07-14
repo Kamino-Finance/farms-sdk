@@ -26,11 +26,15 @@ export interface UpdateFarmConfigAccounts {
   scopePrices: Option<Address>
 }
 
-export const layout = borsh.struct([borsh.u16("mode"), borsh.vecU8("data")])
+export const layout = borsh.struct<UpdateFarmConfigArgs>([
+  borsh.u16("mode"),
+  borsh.vecU8("data"),
+])
 
 export function updateFarmConfig(
   args: UpdateFarmConfigArgs,
   accounts: UpdateFarmConfigAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -39,6 +43,7 @@ export function updateFarmConfig(
     isSome(accounts.scopePrices)
       ? { address: accounts.scopePrices.value, role: 0 }
       : { address: programAddress, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([214, 176, 188, 244, 203, 59, 230, 207])
   const buffer = Buffer.alloc(1000)

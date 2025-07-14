@@ -27,11 +27,14 @@ export interface DepositToFarmVaultAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct([borsh.u64("amount")])
+export const layout = borsh.struct<DepositToFarmVaultArgs>([
+  borsh.u64("amount"),
+])
 
 export function depositToFarmVault(
   args: DepositToFarmVaultArgs,
   accounts: DepositToFarmVaultAccounts,
+  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
@@ -44,6 +47,7 @@ export function depositToFarmVault(
     { address: accounts.farmVault, role: 1 },
     { address: accounts.depositorAta, role: 1 },
     { address: accounts.tokenProgram, role: 0 },
+    ...remainingAccounts,
   ]
   const identifier = Buffer.from([131, 166, 64, 94, 108, 213, 114, 183])
   const buffer = Buffer.alloc(1000)
