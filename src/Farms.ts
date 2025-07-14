@@ -219,25 +219,16 @@ export class Farms {
     }
 
     for (const farm of farms) {
-      try {
-        const farmUserStates = await backOff(
-          () => this.getAllUserStatesForFarm(farm.key),
-          SOLANA_API_RETRY,
-        );
+      const farmUserStates = await backOff(
+        () => this.getAllUserStatesForFarm(farm.key),
+        SOLANA_API_RETRY,
+      );
 
-        if (farmUserStates.length > 0) {
-          // Process in smaller batches to avoid memory issues
-          for (const batch of chunks(farmUserStates, 100)) {
-            yield batch;
-          }
+      if (farmUserStates.length > 0) {
+        // Process in smaller batches to avoid memory issues
+        for (const batch of chunks(farmUserStates, 100)) {
+          yield batch;
         }
-      } catch (error) {
-        console.error(
-          `Error fetching user states for farm ${farm.key}:`,
-          error,
-        );
-        // Continue with next farm even if one fails
-        continue;
       }
     }
   }
