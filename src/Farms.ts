@@ -1325,12 +1325,64 @@ export class Farms {
     return ixs;
   }
 
-  transferOwnershipIx(
+  async transferOwnershipIx(
     user: TransactionSigner,
     userState: Address,
     newUser: Address,
-  ): IInstruction {
-    return farmOperations.transferOwnership(user, userState, newUser);
+  ): Promise<IInstruction> {
+    const userStateData = await UserState.fetch(
+      this._connection,
+      userState,
+      this._farmsProgramId,
+    );
+    if (!userStateData) {
+      throw new Error(`User state not found ${userState.toString()}`);
+    }
+    const farmState = await FarmState.fetch(
+      this._connection,
+      userStateData.farmState,
+      this._farmsProgramId,
+    );
+    if (!farmState) {
+      throw new Error(
+        `Farm state not found ${userStateData.farmState.toString()}`,
+      );
+    }
+
+    this.validateFarmStateForTransferOwnership(farmState);
+
+    const newOwnerUserState = await getUserStatePDA(
+      PROGRAM_ID,
+      userStateData.farmState,
+      newUser,
+    );
+
+    return farmOperations.transferOwnership(
+      user,
+      userState,
+      newUser,
+      userStateData.farmState,
+      newOwnerUserState,
+      getScopePricesFromFarm(farmState),
+    );
+  }
+
+  validateFarmStateForTransferOwnership(farmState: FarmState): void {
+    if (farmState.lockingMode.toNumber() !== LockingMode.None.discriminator) {
+      throw new Error(
+        "Transfer ownership is not allowed for farms with a locking mode",
+      );
+    }
+
+    if (farmState.isFarmDelegated) {
+      throw new Error("Transfer ownership is not allowed for delegated farms");
+    }
+
+    if (farmState.withdrawalCooldownPeriod > 0) {
+      throw new Error(
+        "Transfer ownership is not allowed for farms with a withdrawal cooldown period",
+      );
+    }
   }
 
   async transferOwnershipAllUserStatesIx(
@@ -1339,12 +1391,34 @@ export class Farms {
   ): Promise<Array<IInstruction>> {
     const userStates = await this.getAllUserStatesForUser(user.address);
 
+    const farms = await this.getFarmStatesFromUserStates(userStates);
+
     const ixs = new Array<IInstruction>();
     for (let index = 0; index < userStates.length; index++) {
+      const farmAddress = userStates[index].userState.farmState;
+      const farmState = farms.find((farm) => farm.key === farmAddress);
+
+      if (!farmState) {
+        throw new Error(
+          `Farm state not found for user state ${userStates[index].key}`,
+        );
+      }
+
+      this.validateFarmStateForTransferOwnership(farmState.farmState);
+
+      const newOwnerUserState = await getUserStatePDA(
+        PROGRAM_ID,
+        farmAddress,
+        newUser,
+      );
+
       ixs[index] = farmOperations.transferOwnership(
         user,
         userStates[index].key,
         newUser,
+        farmAddress,
+        newOwnerUserState,
+        getScopePricesFromFarm(farmState.farmState),
       );
     }
 

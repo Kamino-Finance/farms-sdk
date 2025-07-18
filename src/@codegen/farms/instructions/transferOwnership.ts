@@ -15,39 +15,37 @@ import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslin
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
 
-export interface TransferOwnershipArgs {
-  newOwner: Address
-}
-
 export interface TransferOwnershipAccounts {
-  owner: TransactionSigner
-  userState: Address
+  oldOwner: TransactionSigner
+  newOwner: Address
+  oldUserState: Address
+  newUserState: Address
+  farmState: Address
+  scopePrices: Option<Address>
+  systemProgram: Address
+  rent: Address
 }
-
-export const layout = borsh.struct<TransferOwnershipArgs>([
-  borshAddress("newOwner"),
-])
 
 export function transferOwnership(
-  args: TransferOwnershipArgs,
   accounts: TransferOwnershipAccounts,
   remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
-    { address: accounts.owner.address, role: 2, signer: accounts.owner },
-    { address: accounts.userState, role: 1 },
+    { address: accounts.oldOwner.address, role: 3, signer: accounts.oldOwner },
+    { address: accounts.newOwner, role: 0 },
+    { address: accounts.oldUserState, role: 1 },
+    { address: accounts.newUserState, role: 1 },
+    { address: accounts.farmState, role: 1 },
+    isSome(accounts.scopePrices)
+      ? { address: accounts.scopePrices.value, role: 0 }
+      : { address: programAddress, role: 0 },
+    { address: accounts.systemProgram, role: 0 },
+    { address: accounts.rent, role: 0 },
     ...remainingAccounts,
   ]
   const identifier = Buffer.from([65, 177, 215, 73, 53, 45, 99, 47])
-  const buffer = Buffer.alloc(1000)
-  const len = layout.encode(
-    {
-      newOwner: args.newOwner,
-    },
-    buffer
-  )
-  const data = Buffer.concat([identifier, buffer]).slice(0, 8 + len)
+  const data = identifier
   const ix: IInstruction = { accounts: keys, programAddress, data }
   return ix
 }

@@ -348,22 +348,48 @@
       "name": "transferOwnership",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
+          "name": "oldOwner",
+          "isMut": true,
           "isSigner": true
         },
         {
-          "name": "userState",
+          "name": "newOwner",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "oldUserState",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "newUserState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "farmState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "scopePrices",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "newOwner",
-          "type": "publicKey"
-        }
-      ]
+      "args": []
     },
     {
       "name": "rewardUserOnce",
@@ -2023,6 +2049,36 @@
       "code": 6054,
       "name": "InvalidFarmConfigUpdateAuthority",
       "msg": "Invalid authority for updating farm config"
+    },
+    {
+      "code": 6055,
+      "name": "InvalidTransferOwnershipOldOwner",
+      "msg": "Invalid authority for transfer ownersip new user state initialization"
+    },
+    {
+      "code": 6056,
+      "name": "InvalidTransferOwnershipFarmState",
+      "msg": "Invalid farm state for transfer ownership new user state initialization"
+    },
+    {
+      "code": 6057,
+      "name": "InvalidTransferOwnershipUserStateOwnerDelegatee",
+      "msg": "Invalid user state for transfer ownership, owner must match delegatee"
+    },
+    {
+      "code": 6058,
+      "name": "InvalidTransferOwnershipFarmStateLockingMode",
+      "msg": "Invalid farm state locking mode for transfer ownership, must be 0"
+    },
+    {
+      "code": 6059,
+      "name": "InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod",
+      "msg": "Invalid farm state withdrawal cooldown period for transfer ownership, must be 0"
+    },
+    {
+      "code": 6060,
+      "name": "InvalidTransferOwnershipStakeAmount",
+      "msg": "Invalid transfer ownership stake amount, must be equal to unstaked deposits"
     }
   ]
 }

@@ -54,6 +54,12 @@ export type CustomError =
   | RewardScheduleCurveSet
   | UnsupportedTokenExtension
   | InvalidFarmConfigUpdateAuthority
+  | InvalidTransferOwnershipOldOwner
+  | InvalidTransferOwnershipFarmState
+  | InvalidTransferOwnershipUserStateOwnerDelegatee
+  | InvalidTransferOwnershipFarmStateLockingMode
+  | InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod
+  | InvalidTransferOwnershipStakeAmount
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -672,6 +678,90 @@ export class InvalidFarmConfigUpdateAuthority extends Error {
   }
 }
 
+export class InvalidTransferOwnershipOldOwner extends Error {
+  static readonly code = 6055
+  readonly code = 6055
+  readonly name = "InvalidTransferOwnershipOldOwner"
+  readonly msg =
+    "Invalid authority for transfer ownersip new user state initialization"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6055: Invalid authority for transfer ownersip new user state initialization"
+    )
+  }
+}
+
+export class InvalidTransferOwnershipFarmState extends Error {
+  static readonly code = 6056
+  readonly code = 6056
+  readonly name = "InvalidTransferOwnershipFarmState"
+  readonly msg =
+    "Invalid farm state for transfer ownership new user state initialization"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6056: Invalid farm state for transfer ownership new user state initialization"
+    )
+  }
+}
+
+export class InvalidTransferOwnershipUserStateOwnerDelegatee extends Error {
+  static readonly code = 6057
+  readonly code = 6057
+  readonly name = "InvalidTransferOwnershipUserStateOwnerDelegatee"
+  readonly msg =
+    "Invalid user state for transfer ownership, owner must match delegatee"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6057: Invalid user state for transfer ownership, owner must match delegatee"
+    )
+  }
+}
+
+export class InvalidTransferOwnershipFarmStateLockingMode extends Error {
+  static readonly code = 6058
+  readonly code = 6058
+  readonly name = "InvalidTransferOwnershipFarmStateLockingMode"
+  readonly msg =
+    "Invalid farm state locking mode for transfer ownership, must be 0"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6058: Invalid farm state locking mode for transfer ownership, must be 0"
+    )
+  }
+}
+
+export class InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod extends Error {
+  static readonly code = 6059
+  readonly code = 6059
+  readonly name = "InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod"
+  readonly msg =
+    "Invalid farm state withdrawal cooldown period for transfer ownership, must be 0"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6059: Invalid farm state withdrawal cooldown period for transfer ownership, must be 0"
+    )
+  }
+}
+
+export class InvalidTransferOwnershipStakeAmount extends Error {
+  static readonly code = 6060
+  readonly code = 6060
+  readonly name = "InvalidTransferOwnershipStakeAmount"
+  readonly msg =
+    "Invalid transfer ownership stake amount, must be equal to unstaked deposits"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6060: Invalid transfer ownership stake amount, must be equal to unstaked deposits"
+    )
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -784,6 +874,18 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new UnsupportedTokenExtension(logs)
     case 6054:
       return new InvalidFarmConfigUpdateAuthority(logs)
+    case 6055:
+      return new InvalidTransferOwnershipOldOwner(logs)
+    case 6056:
+      return new InvalidTransferOwnershipFarmState(logs)
+    case 6057:
+      return new InvalidTransferOwnershipUserStateOwnerDelegatee(logs)
+    case 6058:
+      return new InvalidTransferOwnershipFarmStateLockingMode(logs)
+    case 6059:
+      return new InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod(logs)
+    case 6060:
+      return new InvalidTransferOwnershipStakeAmount(logs)
   }
 
   return null

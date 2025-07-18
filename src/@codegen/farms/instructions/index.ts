@@ -21,10 +21,7 @@ export type {
 export { initializeUser } from "./initializeUser"
 export type { InitializeUserAccounts } from "./initializeUser"
 export { transferOwnership } from "./transferOwnership"
-export type {
-  TransferOwnershipArgs,
-  TransferOwnershipAccounts,
-} from "./transferOwnership"
+export type { TransferOwnershipAccounts } from "./transferOwnership"
 export { rewardUserOnce } from "./rewardUserOnce"
 export type {
   RewardUserOnceArgs,

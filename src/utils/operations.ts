@@ -7,7 +7,11 @@ import {
 } from "@solana/kit";
 
 import * as Types from "../@codegen/farms/types";
-import { getGlobalConfigValue, GlobalConfigFlagValueType } from "./utils";
+import {
+  getGlobalConfigValue,
+  getUserStatePDA,
+  GlobalConfigFlagValueType,
+} from "./utils";
 import { RewardCurvePoint } from "../Farms";
 import BN from "bn.js";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
@@ -43,7 +47,6 @@ import {
   InitializeUserAccounts,
   initializeUser as initializeUserIx,
   TransferOwnershipAccounts,
-  TransferOwnershipArgs,
   transferOwnership as transferOwnershipIx,
   StakeAccounts,
   StakeArgs,
@@ -89,6 +92,7 @@ import {
   WithdrawAuthority,
   WithdrawCooldownPeriod,
 } from "../@codegen/farms/types/FarmConfigOption";
+import { PROGRAM_ID } from "../@codegen/farms/programId";
 
 const addressEncoder = getAddressEncoder();
 
@@ -400,20 +404,25 @@ export function initializeUser(
 }
 
 export function transferOwnership(
-  owner: TransactionSigner,
-  userState: Address,
+  oldOwner: TransactionSigner,
+  oldUserState: Address,
   newOwner: Address,
+  farmState: Address,
+  newUserState: Address,
+  scopePrices: Option<Address>,
 ): IInstruction {
   let accounts: TransferOwnershipAccounts = {
-    owner: owner,
-    userState: userState,
+    oldOwner: oldOwner,
+    newOwner: newOwner, // The current owner is the userState
+    oldUserState: oldUserState,
+    newUserState: newUserState,
+    farmState: farmState, // Assuming farmState is the same as userState for this context
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    rent: SYSVAR_RENT_ADDRESS,
+    scopePrices: scopePrices,
   };
 
-  let args: TransferOwnershipArgs = {
-    newOwner,
-  };
-
-  return transferOwnershipIx(args, accounts);
+  return transferOwnershipIx(accounts);
 }
 
 export function stake(
