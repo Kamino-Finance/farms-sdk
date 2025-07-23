@@ -186,8 +186,8 @@ export async function accountExist(
   rpc: Rpc<GetAccountInfoApi>,
   account: Address,
 ) {
-  const info = await rpc.getAccountInfo(account).send();
-  if (info.value === null || info.value.data.length === 0) {
+  const info = await rpc.getAccountInfo(account, { encoding: "base64" }).send();
+  if (info.value === null || info.value.data[0].length === 0) {
     return false;
   }
   return true;
