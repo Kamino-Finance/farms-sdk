@@ -60,6 +60,7 @@ export type CustomError =
   | InvalidTransferOwnershipFarmStateLockingMode
   | InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod
   | InvalidTransferOwnershipStakeAmount
+  | InvalidTransferOwnershipNewOwner
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -762,6 +763,20 @@ export class InvalidTransferOwnershipStakeAmount extends Error {
   }
 }
 
+export class InvalidTransferOwnershipNewOwner extends Error {
+  static readonly code = 6061
+  readonly code = 6061
+  readonly name = "InvalidTransferOwnershipNewOwner"
+  readonly msg =
+    "Invalid authority for transfer ownersip new user state initialization"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6061: Invalid authority for transfer ownersip new user state initialization"
+    )
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -886,6 +901,8 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod(logs)
     case 6060:
       return new InvalidTransferOwnershipStakeAmount(logs)
+    case 6061:
+      return new InvalidTransferOwnershipNewOwner(logs)
   }
 
   return null
