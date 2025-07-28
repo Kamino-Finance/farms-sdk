@@ -152,6 +152,48 @@ export class Farms {
     });
   }
 
+  async getUserStatesForUserAndFarm(
+    user: Address,
+    farm: Address,
+  ): Promise<Array<UserAndKey>> {
+    let filters: (
+      | GetProgramAccountsDatasizeFilter
+      | GetProgramAccountsMemcmpFilter
+    )[] = [];
+
+    filters.push({
+      memcmp: {
+        bytes: user.toString() as Base58EncodedBytes,
+        offset: 48n,
+        encoding: "base58",
+      },
+    });
+    filters.push({
+      memcmp: {
+        bytes: farm.toString() as Base58EncodedBytes,
+        offset: 16n,
+        encoding: "base58",
+      },
+    });
+
+    filters.push({ dataSize: BigInt(UserState.layout.span + 8) });
+
+    return (
+      await this._connection
+        .getProgramAccounts(this._farmsProgramId, {
+          filters,
+          encoding: "base64",
+        })
+        .send()
+    ).map((x) => {
+      const userAndKey: UserAndKey = {
+        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
+        key: x.pubkey,
+      };
+      return userAndKey;
+    });
+  }
+
   async getAllUserStates(): Promise<UserAndKey[]> {
     return (
       await this._connection
@@ -475,7 +517,7 @@ export class Farms {
         delegatees,
       );
     }
-    const userStates = await this.getAllUserStatesForUser(user);
+    const userStates = await this.getUserStatesForUserAndFarm(user, farm);
     const userStateKeysForFarm: UserAndKey[] = [];
 
     for (let index = 0; index < userStates.length; index++) {
