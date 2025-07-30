@@ -2028,6 +2028,26 @@ export class Farms {
         .filter((reward) => isValidPubkey(reward.token.mint))
         .map(async (reward) => {
           const { token: rewardToken } = reward;
+
+          // Find the more recent timestamp and rps
+          let rewardAmountPerUnit = this.getRewardPerTimeUnitSecond(reward);
+
+          if (
+            rewardAmountPerUnit.toNumber() === 0 ||
+            reward.rewardsAvailable.toNumber() === 0
+          ) {
+            return {
+              rewardMint: rewardToken.mint,
+              value: new Decimal(0),
+              yearlyRewards: new Decimal(0),
+              monthlyRewards: new Decimal(0),
+              weeklyRewards: new Decimal(0),
+              dailyRewards: new Decimal(0),
+              incentivesApy: 0,
+              hasRewardAvailable: false,
+            };
+          }
+
           const cachedRewardTokenPrice = pricesMap?.get(rewardToken.mint);
           const rewardTokenPrice = cachedRewardTokenPrice
             ? cachedRewardTokenPrice
