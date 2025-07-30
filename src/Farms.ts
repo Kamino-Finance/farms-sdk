@@ -538,9 +538,8 @@ export class Farms {
     farm: Address,
     delegatees: Address[],
   ): Promise<Array<UserAndKey>> {
-    const userStateAddresses: Address[] = [];
     const userStateKeysForFarm: UserAndKey[] = [];
-    await Promise.all(
+    const userStateAddresses: Address[] = await Promise.all(
       delegatees.map(async (delegate) => {
         return await getUserStatePDA(this._farmsProgramId, farm, delegate);
       }),
