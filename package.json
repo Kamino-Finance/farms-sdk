@@ -8,7 +8,7 @@
     "dist",
     "src/**/*.ts"
   ],
-  "version": "3.2.9",
+  "version": "3.2.10",
   "scripts": {
     "build": "yarn tsc -b tsconfig.json --verbose",
     "build:test": "yarn tsc --project ./tests/tsconfig.json",
