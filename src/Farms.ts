@@ -77,6 +77,7 @@ import { Connection } from "@solana/web3.js";
 import { U64_MAX } from "./utils/consts";
 import { decompress } from "fzstd";
 import { backOff, IBackOffOptions } from "exponential-backoff";
+import { ZERO_BN } from "@kamino-finance/kliquidity-sdk";
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
@@ -2033,8 +2034,8 @@ export class Farms {
           let rewardAmountPerUnit = this.getRewardPerTimeUnitSecond(reward);
 
           if (
-            rewardAmountPerUnit.toNumber() === 0 ||
-            reward.rewardsAvailable.toNumber() === 0
+            rewardAmountPerUnit.eq(0) ||
+            reward.rewardsAvailable.eq(ZERO_BN)
           ) {
             return {
               rewardMint: rewardToken.mint,
@@ -2113,7 +2114,6 @@ export class Farms {
       totalActiveStakeAmount,
       getPriceByTokenMintDecimal,
       pricesMap,
-      true, // verbose logging for calculateFarmIncentivesApy
     );
 
     // APYS
