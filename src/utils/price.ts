@@ -1,12 +1,8 @@
 import axios from "axios";
-import { Kamino } from "@kamino-finance/kliquidity-sdk";
 import { Address } from "@solana/kit";
-import { Farms } from "../Farms";
 import Decimal from "decimal.js";
-import { FarmIncentives } from "../models";
-import { FarmState } from "../@codegen/farms/accounts";
 
-export const JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v2";
+export const JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v3";
 export interface GetJupiterPriceParams {
   ids: string;
   vsToken?: string;
@@ -14,16 +10,14 @@ export interface GetJupiterPriceParams {
 }
 
 export interface GetJupiterPriceResponse {
-  data: {
-    [key: string]: GetJupiterPriceTokenInfo;
-  };
-  timeTaken: number;
+  [key: string]: GetJupiterPriceTokenInfo;
 }
 
 interface GetJupiterPriceTokenInfo {
-  id: string;
-  type: string;
-  price: string;
+  usdPrice: number;
+  blockId: number;
+  decimals: number;
+  priceChange24h: number;
 }
 
 async function fetchJupiterPrice(
@@ -44,9 +38,9 @@ export async function getPriceForTokenMint(mint: Address): Promise<Decimal> {
 
   return fetchJupiterPrice(query)
     .then((response) => {
-      const tokenInfo = response.data[mintString];
+      const tokenInfo = response[mintString];
       if (tokenInfo) {
-        return new Decimal(tokenInfo.price);
+        return new Decimal(tokenInfo.usdPrice);
       } else {
         throw new Error(`No price found for token mint: ${mintString}`);
       }
