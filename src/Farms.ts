@@ -72,7 +72,7 @@ import {
 
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { getScopePricesFromFarm } from "./utils/option";
-import { getRewardsApyForStrategy } from "./utils/apy";
+import { getRewardsApyForStrategy } from "./utils";
 import { Connection } from "@solana/web3.js";
 import { U64_MAX } from "./utils/consts";
 import { decompress } from "fzstd";
@@ -2039,6 +2039,7 @@ export class Farms {
           ) {
             return {
               rewardMint: rewardToken.mint,
+              rewardDecimals: new Decimal(rewardToken.decimals.toString()),
               value: new Decimal(0),
               yearlyRewards: new Decimal(0),
               monthlyRewards: new Decimal(0),
@@ -2078,6 +2079,7 @@ export class Farms {
 
           return {
             rewardMint: rewardToken.mint,
+            rewardDecimals: new Decimal(rewardToken.decimals.toString()),
             value: rewardValue,
             yearlyRewards,
             monthlyRewards,

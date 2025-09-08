@@ -26,6 +26,7 @@ export type PendingReward = {
 
 export type IncentiveRewardStats = {
   rewardMint: Address;
+  rewardDecimals: Decimal;
   value: Decimal;
   yearlyRewards: Decimal;
   monthlyRewards: Decimal;
