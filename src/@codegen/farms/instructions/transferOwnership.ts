@@ -17,6 +17,7 @@ import { PROGRAM_ID } from "../programId"
 
 export interface TransferOwnershipAccounts {
   oldOwner: TransactionSigner
+  payer: TransactionSigner
   newOwner: Address
   oldUserState: Address
   newUserState: Address
@@ -32,7 +33,8 @@ export function transferOwnership(
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
-    { address: accounts.oldOwner.address, role: 3, signer: accounts.oldOwner },
+    { address: accounts.oldOwner.address, role: 2, signer: accounts.oldOwner },
+    { address: accounts.payer.address, role: 3, signer: accounts.payer },
     { address: accounts.newOwner, role: 0 },
     { address: accounts.oldUserState, role: 1 },
     { address: accounts.newUserState, role: 1 },

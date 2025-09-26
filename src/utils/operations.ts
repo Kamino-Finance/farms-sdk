@@ -410,9 +410,11 @@ export function transferOwnership(
   farmState: Address,
   newUserState: Address,
   scopePrices: Option<Address>,
+  payer: TransactionSigner = oldOwner,
 ): IInstruction {
   let accounts: TransferOwnershipAccounts = {
     oldOwner: oldOwner,
+    payer: payer,
     newOwner: newOwner, // The current owner is the userState
     oldUserState: oldUserState,
     newUserState: newUserState,

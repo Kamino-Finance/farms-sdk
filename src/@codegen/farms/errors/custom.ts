@@ -61,6 +61,7 @@ export type CustomError =
   | InvalidTransferOwnershipFarmStateWithdrawCooldownPeriod
   | InvalidTransferOwnershipStakeAmount
   | InvalidTransferOwnershipNewOwner
+  | InvalidTransferOwnershipFarmStateDepositWarmupPeriod
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -777,6 +778,20 @@ export class InvalidTransferOwnershipNewOwner extends Error {
   }
 }
 
+export class InvalidTransferOwnershipFarmStateDepositWarmupPeriod extends Error {
+  static readonly code = 6062
+  readonly code = 6062
+  readonly name = "InvalidTransferOwnershipFarmStateDepositWarmupPeriod"
+  readonly msg =
+    "Invalid farm state deposit warmup period for transfer ownership, must be 0 if old user has stake"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6062: Invalid farm state deposit warmup period for transfer ownership, must be 0 if old user has stake"
+    )
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -903,6 +918,8 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new InvalidTransferOwnershipStakeAmount(logs)
     case 6061:
       return new InvalidTransferOwnershipNewOwner(logs)
+    case 6062:
+      return new InvalidTransferOwnershipFarmStateDepositWarmupPeriod(logs)
   }
 
   return null

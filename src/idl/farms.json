@@ -349,6 +349,11 @@
       "accounts": [
         {
           "name": "oldOwner",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
@@ -2084,6 +2089,11 @@
       "code": 6061,
       "name": "InvalidTransferOwnershipNewOwner",
       "msg": "Invalid authority for transfer ownersip new user state initialization"
+    },
+    {
+      "code": 6062,
+      "name": "InvalidTransferOwnershipFarmStateDepositWarmupPeriod",
+      "msg": "Invalid farm state deposit warmup period for transfer ownership, must be 0 if old user has stake"
     }
   ]
 }
