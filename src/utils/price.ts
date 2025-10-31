@@ -1,55 +1,78 @@
-import axios from "axios";
 import { Address } from "@solana/kit";
 import Decimal from "decimal.js";
 
-export const JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v3";
+export const KSWAP_BASE_API = "https://api.kamino.finance/kswap";
 export interface GetJupiterPriceParams {
   ids: string;
   vsToken?: string;
   showExtraInfo?: boolean;
 }
 
-export interface GetJupiterPriceResponse {
-  [key: string]: GetJupiterPriceTokenInfo;
-}
-
-interface GetJupiterPriceTokenInfo {
-  usdPrice: number;
-  blockId: number;
-  decimals: number;
+interface TokenPriceData {
+  isScaledUiToken: boolean;
+  value: number;
+  updateUnixTime: number;
+  updateHumanTime: string;
+  priceInNative: number;
   priceChange24h: number;
 }
 
-async function fetchJupiterPrice(
-  query: GetJupiterPriceParams,
-): Promise<GetJupiterPriceResponse> {
-  const response = await axios.get<GetJupiterPriceResponse>(JUPITER_PRICE_API, {
-    params: query,
-    headers: { "Content-Type": "application/json" },
-  });
-  return response.data;
+interface BatchPriceResponse {
+  success: boolean;
+  data: { [key: string]: TokenPriceData | null };
 }
 
-export async function getPriceForTokenMint(mint: Address): Promise<Decimal> {
-  const mintString = mint.toString();
-  const query: GetJupiterPriceParams = {
-    ids: mintString,
-  };
+export async function getTokensBatchPrice(
+  tokens: Address[],
+): Promise<Map<Address, Decimal>> {
+  const tokensParams = tokens
+    .map((token) => `tokens=${encodeURIComponent(token)}`)
+    .join("&");
+  const url = `${KSWAP_BASE_API}/batch-token-prices?${tokensParams}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch tokens batch price: ${response.statusText}`,
+    );
+  }
+  const data = (await response.json()) as BatchPriceResponse;
 
-  return fetchJupiterPrice(query)
-    .then((response) => {
-      const tokenInfo = response[mintString];
-      if (tokenInfo) {
-        return new Decimal(tokenInfo.usdPrice);
-      } else {
-        throw new Error(`No price found for token mint: ${mintString}`);
+  // Check if response has success field and it's true
+  if (!data.success) {
+    throw new Error("API response indicates failure: " + JSON.stringify(data));
+  }
+
+  const prices = new Map<Address, Decimal>();
+  for (const token of tokens) {
+    const tokenData = data.data[token];
+    if (
+      tokenData &&
+      tokenData.value !== null &&
+      tokenData.value !== undefined
+    ) {
+      try {
+        const price = new Decimal(tokenData.value);
+        prices.set(token, price);
+      } catch (error) {
+        console.error(
+          `Failed to parse price for token, setting to 0: ${token}: ${error}`,
+        );
+        prices.set(token, new Decimal(0));
       }
-    })
-    .catch((error) => {
-      console.error(
-        `Error fetching price for token mint ${mintString}:`,
-        error,
-      );
-      throw error;
-    });
+    } else {
+      console.warn(`No price data available for token ${token}, setting to 0`);
+      prices.set(token, new Decimal(0));
+    }
+  }
+  return prices;
+}
+
+export async function getTokenPrice(token: Address): Promise<Decimal> {
+  const tokenPrice = await getTokensBatchPrice([token]);
+  return tokenPrice.get(token)!;
 }

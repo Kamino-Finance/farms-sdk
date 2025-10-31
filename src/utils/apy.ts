@@ -4,7 +4,7 @@ import { Farms } from "../Farms";
 import Decimal from "decimal.js";
 import { FarmIncentives } from "../models";
 import { FarmState } from "../@codegen/farms/accounts";
-import { getPriceForTokenMint } from "./price";
+import { getTokenPrice } from "./price";
 import { Connection } from "@solana/web3.js";
 
 export async function getRewardsApyForStrategy(
@@ -71,7 +71,7 @@ export async function getFarmIncentivesWithExistentState(
 ): Promise<FarmIncentives> {
   return await farmsClient.calculateFarmIncentivesApy(
     { farmState, key: farm },
-    getPriceForTokenMint,
+    getTokenPrice,
     stakedTokenPrice,
     stakedTokenMintDecimals,
     pricesMap,
