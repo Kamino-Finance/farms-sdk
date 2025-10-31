@@ -400,7 +400,7 @@
       "name": "rewardUserOnce",
       "accounts": [
         {
-          "name": "farmAdmin",
+          "name": "delegateAuthority",
           "isMut": true,
           "isSigner": true
         },
@@ -1099,11 +1099,18 @@
             "type": "u8"
           },
           {
+            "name": "isRewardUserOnceEnabled",
+            "docs": [
+              "If set to 1, indicates that the \"reward user once\" feature is enabled"
+            ],
+            "type": "u8"
+          },
+          {
             "name": "padding0",
             "type": {
               "array": [
                 "u8",
-                5
+                4
               ]
             }
           },
@@ -1502,6 +1509,12 @@
           },
           {
             "name": "UpdateExtraDelegatedAuthority"
+          },
+          {
+            "name": "UpdateIsRewardUserOnceEnabled"
+          },
+          {
+            "name": "UpdateDelegatedAuthority"
           }
         ]
       }
@@ -1953,7 +1966,7 @@
     {
       "code": 6034,
       "name": "FarmNotDelegated",
-      "msg": "Farm not delegated, can not set stake"
+      "msg": "Farm not delegated, can not complete operation"
     },
     {
       "code": 6035,
@@ -2094,6 +2107,16 @@
       "code": 6062,
       "name": "InvalidTransferOwnershipFarmStateDepositWarmupPeriod",
       "msg": "Invalid farm state deposit warmup period for transfer ownership, must be 0 if old user has stake"
+    },
+    {
+      "code": 6063,
+      "name": "RewardUserOnceFeatureDisabled",
+      "msg": "Reward User Once feature is disabled"
+    },
+    {
+      "code": 6064,
+      "name": "InvalidDelegatedAuthorityUpdate",
+      "msg": "Can not set delegate_authority to default pubkey - farm is delegated"
     }
   ]
 }

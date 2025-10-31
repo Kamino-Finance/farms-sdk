@@ -510,6 +510,52 @@ export class UpdateExtraDelegatedAuthority {
   }
 }
 
+export interface UpdateIsRewardUserOnceEnabledJSON {
+  kind: "UpdateIsRewardUserOnceEnabled"
+}
+
+export class UpdateIsRewardUserOnceEnabled {
+  static readonly discriminator = 22
+  static readonly kind = "UpdateIsRewardUserOnceEnabled"
+  readonly discriminator = 22
+  readonly kind = "UpdateIsRewardUserOnceEnabled"
+
+  toJSON(): UpdateIsRewardUserOnceEnabledJSON {
+    return {
+      kind: "UpdateIsRewardUserOnceEnabled",
+    }
+  }
+
+  toEncodable() {
+    return {
+      UpdateIsRewardUserOnceEnabled: {},
+    }
+  }
+}
+
+export interface UpdateDelegatedAuthorityJSON {
+  kind: "UpdateDelegatedAuthority"
+}
+
+export class UpdateDelegatedAuthority {
+  static readonly discriminator = 23
+  static readonly kind = "UpdateDelegatedAuthority"
+  readonly discriminator = 23
+  readonly kind = "UpdateDelegatedAuthority"
+
+  toJSON(): UpdateDelegatedAuthorityJSON {
+    return {
+      kind: "UpdateDelegatedAuthority",
+    }
+  }
+
+  toEncodable() {
+    return {
+      UpdateDelegatedAuthority: {},
+    }
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function fromDecoded(obj: any): types.FarmConfigOptionKind {
   if (typeof obj !== "object") {
@@ -581,6 +627,12 @@ export function fromDecoded(obj: any): types.FarmConfigOptionKind {
   }
   if ("UpdateExtraDelegatedAuthority" in obj) {
     return new UpdateExtraDelegatedAuthority()
+  }
+  if ("UpdateIsRewardUserOnceEnabled" in obj) {
+    return new UpdateIsRewardUserOnceEnabled()
+  }
+  if ("UpdateDelegatedAuthority" in obj) {
+    return new UpdateDelegatedAuthority()
   }
 
   throw new Error("Invalid enum object")
@@ -656,6 +708,12 @@ export function fromJSON(
     case "UpdateExtraDelegatedAuthority": {
       return new UpdateExtraDelegatedAuthority()
     }
+    case "UpdateIsRewardUserOnceEnabled": {
+      return new UpdateIsRewardUserOnceEnabled()
+    }
+    case "UpdateDelegatedAuthority": {
+      return new UpdateDelegatedAuthority()
+    }
   }
 }
 
@@ -683,6 +741,8 @@ export function layout(property?: string) {
     borsh.struct([], "UpdateDelegatedRpsAdmin"),
     borsh.struct([], "UpdateVaultId"),
     borsh.struct([], "UpdateExtraDelegatedAuthority"),
+    borsh.struct([], "UpdateIsRewardUserOnceEnabled"),
+    borsh.struct([], "UpdateDelegatedAuthority"),
   ])
   if (property !== undefined) {
     return ret.replicate(property)

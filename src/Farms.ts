@@ -1655,6 +1655,27 @@ export class Farms {
     return ix;
   }
 
+  async rewardUserOnceIx(
+    delegateAuthority: TransactionSigner,
+    farmState: FarmAndKey,
+    userState: Address,
+    rewardMint: Address,
+    amountLamports: BN,
+  ): Promise<IInstruction> {
+    const rewardIndex = farmState.farmState.rewardInfos.findIndex(
+      (r) => r.token.mint === rewardMint,
+    );
+
+    const ix = farmOperations.rewardUserOnce(
+      delegateAuthority,
+      farmState.key,
+      userState,
+      rewardIndex,
+      amountLamports,
+    );
+    return ix;
+  }
+
   async withdrawRewardAmountFromFarmIx(
     payer: TransactionSigner,
     farm: Address,

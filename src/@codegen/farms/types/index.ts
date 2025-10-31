@@ -29,6 +29,8 @@ export type FarmConfigOptionKind =
   | FarmConfigOption.UpdateDelegatedRpsAdmin
   | FarmConfigOption.UpdateVaultId
   | FarmConfigOption.UpdateExtraDelegatedAuthority
+  | FarmConfigOption.UpdateIsRewardUserOnceEnabled
+  | FarmConfigOption.UpdateDelegatedAuthority
 export type FarmConfigOptionJSON =
   | FarmConfigOption.UpdateRewardRpsJSON
   | FarmConfigOption.UpdateRewardMinClaimDurationJSON
@@ -52,6 +54,8 @@ export type FarmConfigOptionJSON =
   | FarmConfigOption.UpdateDelegatedRpsAdminJSON
   | FarmConfigOption.UpdateVaultIdJSON
   | FarmConfigOption.UpdateExtraDelegatedAuthorityJSON
+  | FarmConfigOption.UpdateIsRewardUserOnceEnabledJSON
+  | FarmConfigOption.UpdateDelegatedAuthorityJSON
 
 export { GlobalConfigOption }
 

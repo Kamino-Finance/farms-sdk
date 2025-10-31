@@ -72,6 +72,9 @@ import {
   depositToFarmVault as depositToFarmVaultIx,
   UpdateSecondDelegatedAuthorityAccounts,
   updateSecondDelegatedAuthority as updateSecondDelegatedAuthorityIx,
+  RewardUserOnceAccounts,
+  RewardUserOnceArgs,
+  rewardUserOnce as rewardUserOnceIx,
 } from "../@codegen/farms/instructions";
 import {
   DepositCapAmount,
@@ -84,7 +87,9 @@ import {
   ScopeOraclePriceId,
   ScopePricesAccount,
   SlashedAmountSpillAddress,
+  UpdateDelegatedAuthority,
   UpdateDelegatedRpsAdmin,
+  UpdateIsRewardUserOnceEnabled,
   UpdatePendingFarmAdmin,
   UpdateRewardScheduleCurvePoints,
   UpdateStrategyId,
@@ -275,6 +280,27 @@ export function addReward(
   return addRewardsIx(args, accounts);
 }
 
+export function rewardUserOnce(
+  delegateAuthority: TransactionSigner,
+  farmState: Address,
+  userState: Address,
+  rewardIndex: number,
+  amount: BN,
+): IInstruction {
+  let accounts: RewardUserOnceAccounts = {
+    delegateAuthority,
+    farmState,
+    userState,
+  };
+
+  let args: RewardUserOnceArgs = {
+    amount,
+    rewardIndex: new BN(rewardIndex),
+  };
+
+  return rewardUserOnceIx(args, accounts);
+}
+
 export function withdrawReward(
   admin: TransactionSigner,
   farmState: Address,
@@ -351,11 +377,17 @@ export function updateFarmConfig(
     case WithdrawAuthority.discriminator:
     case UpdateDelegatedRpsAdmin.discriminator:
     case UpdateVaultId.discriminator:
+    case UpdateDelegatedAuthority.discriminator:
       data = Buffer.from(addressEncoder.encode(value as Address));
       break;
     case UpdateRewardScheduleCurvePoints.discriminator:
       let points = value as RewardCurvePoint[];
       data = serializeRewardCurvePoint(rewardIndex, points);
+      break;
+    case UpdateIsRewardUserOnceEnabled.discriminator:
+      buffer = Buffer.alloc(1);
+      buffer.writeUInt8(value as number, 0);
+      data = Uint8Array.from(buffer);
       break;
     default:
       data = serializeConfigValue(BigInt(rewardIndex), BigInt(value as number));

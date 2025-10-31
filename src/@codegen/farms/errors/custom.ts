@@ -62,6 +62,8 @@ export type CustomError =
   | InvalidTransferOwnershipStakeAmount
   | InvalidTransferOwnershipNewOwner
   | InvalidTransferOwnershipFarmStateDepositWarmupPeriod
+  | RewardUserOnceFeatureDisabled
+  | InvalidDelegatedAuthorityUpdate
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -447,10 +449,10 @@ export class FarmNotDelegated extends Error {
   static readonly code = 6034
   readonly code = 6034
   readonly name = "FarmNotDelegated"
-  readonly msg = "Farm not delegated, can not set stake"
+  readonly msg = "Farm not delegated, can not complete operation"
 
   constructor(readonly logs?: string[]) {
-    super("6034: Farm not delegated, can not set stake")
+    super("6034: Farm not delegated, can not complete operation")
   }
 }
 
@@ -792,6 +794,31 @@ export class InvalidTransferOwnershipFarmStateDepositWarmupPeriod extends Error 
   }
 }
 
+export class RewardUserOnceFeatureDisabled extends Error {
+  static readonly code = 6063
+  readonly code = 6063
+  readonly name = "RewardUserOnceFeatureDisabled"
+  readonly msg = "Reward User Once feature is disabled"
+
+  constructor(readonly logs?: string[]) {
+    super("6063: Reward User Once feature is disabled")
+  }
+}
+
+export class InvalidDelegatedAuthorityUpdate extends Error {
+  static readonly code = 6064
+  readonly code = 6064
+  readonly name = "InvalidDelegatedAuthorityUpdate"
+  readonly msg =
+    "Can not set delegate_authority to default pubkey - farm is delegated"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6064: Can not set delegate_authority to default pubkey - farm is delegated"
+    )
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -920,6 +947,10 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new InvalidTransferOwnershipNewOwner(logs)
     case 6062:
       return new InvalidTransferOwnershipFarmStateDepositWarmupPeriod(logs)
+    case 6063:
+      return new RewardUserOnceFeatureDisabled(logs)
+    case 6064:
+      return new InvalidDelegatedAuthorityUpdate(logs)
   }
 
   return null

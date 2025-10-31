@@ -21,7 +21,7 @@ export interface RewardUserOnceArgs {
 }
 
 export interface RewardUserOnceAccounts {
-  farmAdmin: TransactionSigner
+  delegateAuthority: TransactionSigner
   farmState: Address
   userState: Address
 }
@@ -39,9 +39,9 @@ export function rewardUserOnce(
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
     {
-      address: accounts.farmAdmin.address,
+      address: accounts.delegateAuthority.address,
       role: 3,
-      signer: accounts.farmAdmin,
+      signer: accounts.delegateAuthority,
     },
     { address: accounts.farmState, role: 1 },
     { address: accounts.userState, role: 1 },

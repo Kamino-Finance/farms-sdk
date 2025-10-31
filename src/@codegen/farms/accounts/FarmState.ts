@@ -51,6 +51,8 @@ export interface FarmStateFields {
    * If true, the farm is a delegate farm and the `delegate_authority` is set*
    */
   isFarmDelegated: number
+  /** If set to 1, indicates that the "reward user once" feature is enabled */
+  isRewardUserOnceEnabled: number
   padding0: Array<number>
   /**
    * Withdraw authority for the farm, allowed to lock deposited funds and withdraw them
@@ -130,6 +132,8 @@ export interface FarmStateJSON {
    * If true, the farm is a delegate farm and the `delegate_authority` is set*
    */
   isFarmDelegated: number
+  /** If set to 1, indicates that the "reward user once" feature is enabled */
+  isRewardUserOnceEnabled: number
   padding0: Array<number>
   /**
    * Withdraw authority for the farm, allowed to lock deposited funds and withdraw them
@@ -209,6 +213,8 @@ export class FarmState {
    * If true, the farm is a delegate farm and the `delegate_authority` is set*
    */
   readonly isFarmDelegated: number
+  /** If set to 1, indicates that the "reward user once" feature is enabled */
+  readonly isRewardUserOnceEnabled: number
   readonly padding0: Array<number>
   /**
    * Withdraw authority for the farm, allowed to lock deposited funds and withdraw them
@@ -270,7 +276,8 @@ export class FarmState {
     borsh.u8("timeUnit"),
     borsh.u8("isFarmFrozen"),
     borsh.u8("isFarmDelegated"),
-    borsh.array(borsh.u8(), 5, "padding0"),
+    borsh.u8("isRewardUserOnceEnabled"),
+    borsh.array(borsh.u8(), 4, "padding0"),
     borshAddress("withdrawAuthority"),
     borsh.u32("depositWarmupPeriod"),
     borsh.u32("withdrawalCooldownPeriod"),
@@ -313,6 +320,7 @@ export class FarmState {
     this.timeUnit = fields.timeUnit
     this.isFarmFrozen = fields.isFarmFrozen
     this.isFarmDelegated = fields.isFarmDelegated
+    this.isRewardUserOnceEnabled = fields.isRewardUserOnceEnabled
     this.padding0 = fields.padding0
     this.withdrawAuthority = fields.withdrawAuthority
     this.depositWarmupPeriod = fields.depositWarmupPeriod
@@ -406,6 +414,7 @@ export class FarmState {
       timeUnit: dec.timeUnit,
       isFarmFrozen: dec.isFarmFrozen,
       isFarmDelegated: dec.isFarmDelegated,
+      isRewardUserOnceEnabled: dec.isRewardUserOnceEnabled,
       padding0: dec.padding0,
       withdrawAuthority: dec.withdrawAuthority,
       depositWarmupPeriod: dec.depositWarmupPeriod,
@@ -449,6 +458,7 @@ export class FarmState {
       timeUnit: this.timeUnit,
       isFarmFrozen: this.isFarmFrozen,
       isFarmDelegated: this.isFarmDelegated,
+      isRewardUserOnceEnabled: this.isRewardUserOnceEnabled,
       padding0: this.padding0,
       withdrawAuthority: this.withdrawAuthority,
       depositWarmupPeriod: this.depositWarmupPeriod,
@@ -495,6 +505,7 @@ export class FarmState {
       timeUnit: obj.timeUnit,
       isFarmFrozen: obj.isFarmFrozen,
       isFarmDelegated: obj.isFarmDelegated,
+      isRewardUserOnceEnabled: obj.isRewardUserOnceEnabled,
       padding0: obj.padding0,
       withdrawAuthority: address(obj.withdrawAuthority),
       depositWarmupPeriod: obj.depositWarmupPeriod,
