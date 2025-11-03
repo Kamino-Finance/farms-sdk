@@ -64,6 +64,8 @@ export type CustomError =
   | InvalidTransferOwnershipFarmStateDepositWarmupPeriod
   | RewardUserOnceFeatureDisabled
   | InvalidDelegatedAuthorityUpdate
+  | UserTokenAccountOwnerMismatch
+  | HarvestingNotPermissionlessPayerMismatch
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -819,6 +821,31 @@ export class InvalidDelegatedAuthorityUpdate extends Error {
   }
 }
 
+export class UserTokenAccountOwnerMismatch extends Error {
+  static readonly code = 6065
+  readonly code = 6065
+  readonly name = "UserTokenAccountOwnerMismatch"
+  readonly msg = "User token account owner does not match user state owner"
+
+  constructor(readonly logs?: string[]) {
+    super("6065: User token account owner does not match user state owner")
+  }
+}
+
+export class HarvestingNotPermissionlessPayerMismatch extends Error {
+  static readonly code = 6066
+  readonly code = 6066
+  readonly name = "HarvestingNotPermissionlessPayerMismatch"
+  readonly msg =
+    "Harvesting is not permissionless, payer does not match user state owner"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6066: Harvesting is not permissionless, payer does not match user state owner"
+    )
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -951,6 +978,10 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new RewardUserOnceFeatureDisabled(logs)
     case 6064:
       return new InvalidDelegatedAuthorityUpdate(logs)
+    case 6065:
+      return new UserTokenAccountOwnerMismatch(logs)
+    case 6066:
+      return new HarvestingNotPermissionlessPayerMismatch(logs)
   }
 
   return null

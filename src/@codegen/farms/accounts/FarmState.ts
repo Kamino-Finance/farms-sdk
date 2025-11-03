@@ -53,6 +53,7 @@ export interface FarmStateFields {
   isFarmDelegated: number
   /** If set to 1, indicates that the "reward user once" feature is enabled */
   isRewardUserOnceEnabled: number
+  isHarvestingPermissionless: number
   padding0: Array<number>
   /**
    * Withdraw authority for the farm, allowed to lock deposited funds and withdraw them
@@ -134,6 +135,7 @@ export interface FarmStateJSON {
   isFarmDelegated: number
   /** If set to 1, indicates that the "reward user once" feature is enabled */
   isRewardUserOnceEnabled: number
+  isHarvestingPermissionless: number
   padding0: Array<number>
   /**
    * Withdraw authority for the farm, allowed to lock deposited funds and withdraw them
@@ -215,6 +217,7 @@ export class FarmState {
   readonly isFarmDelegated: number
   /** If set to 1, indicates that the "reward user once" feature is enabled */
   readonly isRewardUserOnceEnabled: number
+  readonly isHarvestingPermissionless: number
   readonly padding0: Array<number>
   /**
    * Withdraw authority for the farm, allowed to lock deposited funds and withdraw them
@@ -277,7 +280,8 @@ export class FarmState {
     borsh.u8("isFarmFrozen"),
     borsh.u8("isFarmDelegated"),
     borsh.u8("isRewardUserOnceEnabled"),
-    borsh.array(borsh.u8(), 4, "padding0"),
+    borsh.u8("isHarvestingPermissionless"),
+    borsh.array(borsh.u8(), 3, "padding0"),
     borshAddress("withdrawAuthority"),
     borsh.u32("depositWarmupPeriod"),
     borsh.u32("withdrawalCooldownPeriod"),
@@ -321,6 +325,7 @@ export class FarmState {
     this.isFarmFrozen = fields.isFarmFrozen
     this.isFarmDelegated = fields.isFarmDelegated
     this.isRewardUserOnceEnabled = fields.isRewardUserOnceEnabled
+    this.isHarvestingPermissionless = fields.isHarvestingPermissionless
     this.padding0 = fields.padding0
     this.withdrawAuthority = fields.withdrawAuthority
     this.depositWarmupPeriod = fields.depositWarmupPeriod
@@ -415,6 +420,7 @@ export class FarmState {
       isFarmFrozen: dec.isFarmFrozen,
       isFarmDelegated: dec.isFarmDelegated,
       isRewardUserOnceEnabled: dec.isRewardUserOnceEnabled,
+      isHarvestingPermissionless: dec.isHarvestingPermissionless,
       padding0: dec.padding0,
       withdrawAuthority: dec.withdrawAuthority,
       depositWarmupPeriod: dec.depositWarmupPeriod,
@@ -459,6 +465,7 @@ export class FarmState {
       isFarmFrozen: this.isFarmFrozen,
       isFarmDelegated: this.isFarmDelegated,
       isRewardUserOnceEnabled: this.isRewardUserOnceEnabled,
+      isHarvestingPermissionless: this.isHarvestingPermissionless,
       padding0: this.padding0,
       withdrawAuthority: this.withdrawAuthority,
       depositWarmupPeriod: this.depositWarmupPeriod,
@@ -506,6 +513,7 @@ export class FarmState {
       isFarmFrozen: obj.isFarmFrozen,
       isFarmDelegated: obj.isFarmDelegated,
       isRewardUserOnceEnabled: obj.isRewardUserOnceEnabled,
+      isHarvestingPermissionless: obj.isHarvestingPermissionless,
       padding0: obj.padding0,
       withdrawAuthority: address(obj.withdrawAuthority),
       depositWarmupPeriod: obj.depositWarmupPeriod,

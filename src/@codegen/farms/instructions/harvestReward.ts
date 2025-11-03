@@ -20,12 +20,12 @@ export interface HarvestRewardArgs {
 }
 
 export interface HarvestRewardAccounts {
-  owner: TransactionSigner
+  payer: TransactionSigner
   userState: Address
   farmState: Address
   globalConfig: Address
   rewardMint: Address
-  userRewardAta: Address
+  userRewardTokenAccount: Address
   rewardsVault: Address
   rewardsTreasuryVault: Address
   farmVaultsAuthority: Address
@@ -44,12 +44,12 @@ export function harvestReward(
   programAddress: Address = PROGRAM_ID
 ) {
   const keys: Array<IAccountMeta | IAccountSignerMeta> = [
-    { address: accounts.owner.address, role: 3, signer: accounts.owner },
+    { address: accounts.payer.address, role: 3, signer: accounts.payer },
     { address: accounts.userState, role: 1 },
     { address: accounts.farmState, role: 1 },
     { address: accounts.globalConfig, role: 0 },
     { address: accounts.rewardMint, role: 0 },
-    { address: accounts.userRewardAta, role: 1 },
+    { address: accounts.userRewardTokenAccount, role: 1 },
     { address: accounts.rewardsVault, role: 1 },
     { address: accounts.rewardsTreasuryVault, role: 1 },
     { address: accounts.farmVaultsAuthority, role: 0 },

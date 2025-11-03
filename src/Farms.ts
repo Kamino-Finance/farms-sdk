@@ -1275,19 +1275,16 @@ export class Farms {
   }
 
   async claimForUserForFarmAllRewardsIx(
-    user: TransactionSigner,
+    payer: TransactionSigner,
+    user: Address,
     farm: Address,
     isDelegated: boolean,
     delegatees?: Address[],
   ): Promise<Array<IInstruction>> {
     const farmState = await FarmState.fetch(this._connection, farm);
     const userStatesAndKeys = isDelegated
-      ? await this.getUserStateKeysForDelegatedFarm(
-          user.address,
-          farm,
-          delegatees,
-        )
-      : [await this.getUserStateKeyForUndelegatedFarm(user.address, farm)];
+      ? await this.getUserStateKeysForDelegatedFarm(user, farm, delegatees)
+      : [await this.getUserStateKeyForUndelegatedFarm(user, farm)];
     const ixs = new Array<IInstruction>();
     // hardcoded as a hotfix for JTO release;
     // TODO: replace by proper fix
@@ -1319,7 +1316,7 @@ export class Farms {
           farmState.rewardInfos[rewardIndex].token.tokenProgram;
 
         const userRewardAta = await getAssociatedTokenAddress(
-          user.address,
+          user,
           rewardMint,
           rewardTokenProgram,
         );
@@ -1333,13 +1330,13 @@ export class Farms {
           userRewardAta,
         );
 
-        if (!ataExists) {
+        if (!ataExists && payer.address === user) {
           const [, ix] =
             await createAssociatedTokenAccountIdempotentInstruction(
-              user,
+              payer,
               rewardMint,
               rewardTokenProgram,
-              user.address,
+              user,
               userRewardAta,
             );
 
@@ -1347,7 +1344,7 @@ export class Farms {
         }
         ixs.push(
           farmOperations.harvestReward(
-            user,
+            payer,
             userStatesAndKeys[userStateIndex].key,
             userRewardAta,
             farmState.globalConfig,

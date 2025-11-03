@@ -79,6 +79,7 @@ import {
 import {
   DepositCapAmount,
   DepositWarmupPeriod,
+  UpdateIsHarvestingPermissionless,
   LockingDuration,
   LockingEarlyWithdrawalPenaltyBps,
   LockingMode,
@@ -370,6 +371,11 @@ export function updateFarmConfig(
       buffer.writeInt32LE(value as number, 0);
       data = Uint8Array.from(buffer);
       break;
+    case UpdateIsHarvestingPermissionless.discriminator:
+      buffer = Buffer.alloc(1);
+      buffer.writeUInt8(value as number, 0);
+      data = Uint8Array.from(buffer);
+      break;
     case UpdateStrategyId.discriminator:
     case UpdatePendingFarmAdmin.discriminator:
     case ScopePricesAccount.discriminator:
@@ -509,7 +515,7 @@ export function unstake(
 }
 
 export function harvestReward(
-  owner: TransactionSigner,
+  payer: TransactionSigner,
   userState: Address,
   userRewardAta: Address,
   globalConfig: Address,
@@ -523,14 +529,14 @@ export function harvestReward(
   rewardIndex: number,
 ): IInstruction {
   let accounts: HarvestRewardAccounts = {
-    owner: owner,
+    payer: payer,
     userState: userState,
     farmState: farmState,
     globalConfig: globalConfig,
     rewardMint,
     rewardsVault: rewardVault,
     rewardsTreasuryVault: treasuryVault,
-    userRewardAta: userRewardAta,
+    userRewardTokenAccount: userRewardAta,
     farmVaultsAuthority: farmVaultAuthority,
     tokenProgram,
     scopePrices,

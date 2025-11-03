@@ -556,6 +556,29 @@ export class UpdateDelegatedAuthority {
   }
 }
 
+export interface UpdateIsHarvestingPermissionlessJSON {
+  kind: "UpdateIsHarvestingPermissionless"
+}
+
+export class UpdateIsHarvestingPermissionless {
+  static readonly discriminator = 24
+  static readonly kind = "UpdateIsHarvestingPermissionless"
+  readonly discriminator = 24
+  readonly kind = "UpdateIsHarvestingPermissionless"
+
+  toJSON(): UpdateIsHarvestingPermissionlessJSON {
+    return {
+      kind: "UpdateIsHarvestingPermissionless",
+    }
+  }
+
+  toEncodable() {
+    return {
+      UpdateIsHarvestingPermissionless: {},
+    }
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function fromDecoded(obj: any): types.FarmConfigOptionKind {
   if (typeof obj !== "object") {
@@ -633,6 +656,9 @@ export function fromDecoded(obj: any): types.FarmConfigOptionKind {
   }
   if ("UpdateDelegatedAuthority" in obj) {
     return new UpdateDelegatedAuthority()
+  }
+  if ("UpdateIsHarvestingPermissionless" in obj) {
+    return new UpdateIsHarvestingPermissionless()
   }
 
   throw new Error("Invalid enum object")
@@ -714,6 +740,9 @@ export function fromJSON(
     case "UpdateDelegatedAuthority": {
       return new UpdateDelegatedAuthority()
     }
+    case "UpdateIsHarvestingPermissionless": {
+      return new UpdateIsHarvestingPermissionless()
+    }
   }
 }
 
@@ -743,6 +772,7 @@ export function layout(property?: string) {
     borsh.struct([], "UpdateExtraDelegatedAuthority"),
     borsh.struct([], "UpdateIsRewardUserOnceEnabled"),
     borsh.struct([], "UpdateDelegatedAuthority"),
+    borsh.struct([], "UpdateIsHarvestingPermissionless"),
   ])
   if (property !== undefined) {
     return ret.replicate(property)

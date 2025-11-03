@@ -31,6 +31,7 @@ export type FarmConfigOptionKind =
   | FarmConfigOption.UpdateExtraDelegatedAuthority
   | FarmConfigOption.UpdateIsRewardUserOnceEnabled
   | FarmConfigOption.UpdateDelegatedAuthority
+  | FarmConfigOption.UpdateIsHarvestingPermissionless
 export type FarmConfigOptionJSON =
   | FarmConfigOption.UpdateRewardRpsJSON
   | FarmConfigOption.UpdateRewardMinClaimDurationJSON
@@ -56,6 +57,7 @@ export type FarmConfigOptionJSON =
   | FarmConfigOption.UpdateExtraDelegatedAuthorityJSON
   | FarmConfigOption.UpdateIsRewardUserOnceEnabledJSON
   | FarmConfigOption.UpdateDelegatedAuthorityJSON
+  | FarmConfigOption.UpdateIsHarvestingPermissionlessJSON
 
 export { GlobalConfigOption }
 
