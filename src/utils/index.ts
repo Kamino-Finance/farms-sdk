@@ -4,3 +4,4 @@ export * from "./setup";
 export * from "./utils";
 export * from "./mathUtils";
 export * from "./apy";
+export * from "./vestingUtils";
