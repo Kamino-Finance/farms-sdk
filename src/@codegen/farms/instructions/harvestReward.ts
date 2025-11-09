@@ -2,9 +2,9 @@
 import {
   Address,
   isSome,
-  IAccountMeta,
-  IAccountSignerMeta,
-  IInstruction,
+  AccountMeta,
+  AccountSignerMeta,
+  Instruction,
   Option,
   TransactionSigner,
 } from "@solana/kit"
@@ -14,6 +14,8 @@ import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-esl
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
+
+export const DISCRIMINATOR = Buffer.from([68, 200, 228, 233, 184, 32, 226, 188])
 
 export interface HarvestRewardArgs {
   rewardIndex: BN
@@ -33,17 +35,15 @@ export interface HarvestRewardAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct<HarvestRewardArgs>([
-  borsh.u64("rewardIndex"),
-])
+export const layout = borsh.struct([borsh.u64("rewardIndex")])
 
 export function harvestReward(
   args: HarvestRewardArgs,
   accounts: HarvestRewardAccounts,
-  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
+  remainingAccounts: Array<AccountMeta | AccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
-  const keys: Array<IAccountMeta | IAccountSignerMeta> = [
+  const keys: Array<AccountMeta | AccountSignerMeta> = [
     { address: accounts.payer.address, role: 3, signer: accounts.payer },
     { address: accounts.userState, role: 1 },
     { address: accounts.farmState, role: 1 },
@@ -59,7 +59,6 @@ export function harvestReward(
     { address: accounts.tokenProgram, role: 0 },
     ...remainingAccounts,
   ]
-  const identifier = Buffer.from([68, 200, 228, 233, 184, 32, 226, 188])
   const buffer = Buffer.alloc(1000)
   const len = layout.encode(
     {
@@ -67,7 +66,7 @@ export function harvestReward(
     },
     buffer
   )
-  const data = Buffer.concat([identifier, buffer]).slice(0, 8 + len)
-  const ix: IInstruction = { accounts: keys, programAddress, data }
+  const data = Buffer.concat([DISCRIMINATOR, buffer]).slice(0, 8 + len)
+  const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

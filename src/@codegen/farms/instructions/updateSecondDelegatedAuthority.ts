@@ -2,9 +2,9 @@
 import {
   Address,
   isSome,
-  IAccountMeta,
-  IAccountSignerMeta,
-  IInstruction,
+  AccountMeta,
+  AccountSignerMeta,
+  Instruction,
   Option,
   TransactionSigner,
 } from "@solana/kit"
@@ -15,6 +15,8 @@ import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslin
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
 
+export const DISCRIMINATOR = Buffer.from([127, 26, 6, 181, 203, 248, 117, 64])
+
 export interface UpdateSecondDelegatedAuthorityAccounts {
   globalAdmin: TransactionSigner
   farmState: Address
@@ -24,10 +26,10 @@ export interface UpdateSecondDelegatedAuthorityAccounts {
 
 export function updateSecondDelegatedAuthority(
   accounts: UpdateSecondDelegatedAuthorityAccounts,
-  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
+  remainingAccounts: Array<AccountMeta | AccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
-  const keys: Array<IAccountMeta | IAccountSignerMeta> = [
+  const keys: Array<AccountMeta | AccountSignerMeta> = [
     {
       address: accounts.globalAdmin.address,
       role: 3,
@@ -38,8 +40,7 @@ export function updateSecondDelegatedAuthority(
     { address: accounts.newSecondDelegatedAuthority, role: 0 },
     ...remainingAccounts,
   ]
-  const identifier = Buffer.from([127, 26, 6, 181, 203, 248, 117, 64])
-  const data = identifier
-  const ix: IInstruction = { accounts: keys, programAddress, data }
+  const data = DISCRIMINATOR
+  const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

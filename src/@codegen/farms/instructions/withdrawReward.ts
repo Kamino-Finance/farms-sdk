@@ -2,9 +2,9 @@
 import {
   Address,
   isSome,
-  IAccountMeta,
-  IAccountSignerMeta,
-  IInstruction,
+  AccountMeta,
+  AccountSignerMeta,
+  Instruction,
   Option,
   TransactionSigner,
 } from "@solana/kit"
@@ -14,6 +14,8 @@ import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-esl
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
+
+export const DISCRIMINATOR = Buffer.from([191, 187, 176, 137, 9, 25, 187, 244])
 
 export interface WithdrawRewardArgs {
   amount: BN
@@ -31,7 +33,7 @@ export interface WithdrawRewardAccounts {
   tokenProgram: Address
 }
 
-export const layout = borsh.struct<WithdrawRewardArgs>([
+export const layout = borsh.struct([
   borsh.u64("amount"),
   borsh.u64("rewardIndex"),
 ])
@@ -39,10 +41,10 @@ export const layout = borsh.struct<WithdrawRewardArgs>([
 export function withdrawReward(
   args: WithdrawRewardArgs,
   accounts: WithdrawRewardAccounts,
-  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
+  remainingAccounts: Array<AccountMeta | AccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
-  const keys: Array<IAccountMeta | IAccountSignerMeta> = [
+  const keys: Array<AccountMeta | AccountSignerMeta> = [
     {
       address: accounts.farmAdmin.address,
       role: 3,
@@ -59,7 +61,6 @@ export function withdrawReward(
     { address: accounts.tokenProgram, role: 0 },
     ...remainingAccounts,
   ]
-  const identifier = Buffer.from([191, 187, 176, 137, 9, 25, 187, 244])
   const buffer = Buffer.alloc(1000)
   const len = layout.encode(
     {
@@ -68,7 +69,7 @@ export function withdrawReward(
     },
     buffer
   )
-  const data = Buffer.concat([identifier, buffer]).slice(0, 8 + len)
-  const ix: IInstruction = { accounts: keys, programAddress, data }
+  const data = Buffer.concat([DISCRIMINATOR, buffer]).slice(0, 8 + len)
+  const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

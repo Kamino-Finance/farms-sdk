@@ -2,9 +2,9 @@
 import {
   Address,
   isSome,
-  IAccountMeta,
-  IAccountSignerMeta,
-  IInstruction,
+  AccountMeta,
+  AccountSignerMeta,
+  Instruction,
   Option,
   TransactionSigner,
 } from "@solana/kit"
@@ -14,6 +14,8 @@ import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-esl
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
+
+export const DISCRIMINATOR = Buffer.from([73, 171, 184, 75, 30, 56, 198, 223])
 
 export interface SetStakeDelegatedArgs {
   newAmount: BN
@@ -25,17 +27,15 @@ export interface SetStakeDelegatedAccounts {
   farmState: Address
 }
 
-export const layout = borsh.struct<SetStakeDelegatedArgs>([
-  borsh.u64("newAmount"),
-])
+export const layout = borsh.struct([borsh.u64("newAmount")])
 
 export function setStakeDelegated(
   args: SetStakeDelegatedArgs,
   accounts: SetStakeDelegatedAccounts,
-  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
+  remainingAccounts: Array<AccountMeta | AccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
-  const keys: Array<IAccountMeta | IAccountSignerMeta> = [
+  const keys: Array<AccountMeta | AccountSignerMeta> = [
     {
       address: accounts.delegateAuthority.address,
       role: 2,
@@ -45,7 +45,6 @@ export function setStakeDelegated(
     { address: accounts.farmState, role: 1 },
     ...remainingAccounts,
   ]
-  const identifier = Buffer.from([73, 171, 184, 75, 30, 56, 198, 223])
   const buffer = Buffer.alloc(1000)
   const len = layout.encode(
     {
@@ -53,7 +52,7 @@ export function setStakeDelegated(
     },
     buffer
   )
-  const data = Buffer.concat([identifier, buffer]).slice(0, 8 + len)
-  const ix: IInstruction = { accounts: keys, programAddress, data }
+  const data = Buffer.concat([DISCRIMINATOR, buffer]).slice(0, 8 + len)
+  const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

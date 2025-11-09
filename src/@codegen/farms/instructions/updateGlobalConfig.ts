@@ -2,9 +2,9 @@
 import {
   Address,
   isSome,
-  IAccountMeta,
-  IAccountSignerMeta,
-  IInstruction,
+  AccountMeta,
+  AccountSignerMeta,
+  Instruction,
   Option,
   TransactionSigner,
 } from "@solana/kit"
@@ -14,6 +14,8 @@ import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-esl
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
+
+export const DISCRIMINATOR = Buffer.from([164, 84, 130, 189, 111, 58, 250, 200])
 
 export interface UpdateGlobalConfigArgs {
   mode: number
@@ -25,7 +27,7 @@ export interface UpdateGlobalConfigAccounts {
   globalConfig: Address
 }
 
-export const layout = borsh.struct<UpdateGlobalConfigArgs>([
+export const layout = borsh.struct([
   borsh.u8("mode"),
   borsh.array(borsh.u8(), 32, "value"),
 ])
@@ -33,10 +35,10 @@ export const layout = borsh.struct<UpdateGlobalConfigArgs>([
 export function updateGlobalConfig(
   args: UpdateGlobalConfigArgs,
   accounts: UpdateGlobalConfigAccounts,
-  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
+  remainingAccounts: Array<AccountMeta | AccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
-  const keys: Array<IAccountMeta | IAccountSignerMeta> = [
+  const keys: Array<AccountMeta | AccountSignerMeta> = [
     {
       address: accounts.globalAdmin.address,
       role: 2,
@@ -45,7 +47,6 @@ export function updateGlobalConfig(
     { address: accounts.globalConfig, role: 1 },
     ...remainingAccounts,
   ]
-  const identifier = Buffer.from([164, 84, 130, 189, 111, 58, 250, 200])
   const buffer = Buffer.alloc(1000)
   const len = layout.encode(
     {
@@ -54,7 +55,7 @@ export function updateGlobalConfig(
     },
     buffer
   )
-  const data = Buffer.concat([identifier, buffer]).slice(0, 8 + len)
-  const ix: IInstruction = { accounts: keys, programAddress, data }
+  const data = Buffer.concat([DISCRIMINATOR, buffer]).slice(0, 8 + len)
+  const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

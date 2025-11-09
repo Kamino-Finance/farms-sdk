@@ -2,9 +2,9 @@
 import {
   Address,
   isSome,
-  IAccountMeta,
-  IAccountSignerMeta,
-  IInstruction,
+  AccountMeta,
+  AccountSignerMeta,
+  Instruction,
   Option,
   TransactionSigner,
 } from "@solana/kit"
@@ -15,6 +15,8 @@ import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslin
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
 
+export const DISCRIMINATOR = Buffer.from([184, 87, 23, 193, 156, 238, 175, 119])
+
 export interface UpdateGlobalConfigAdminAccounts {
   pendingGlobalAdmin: TransactionSigner
   globalConfig: Address
@@ -22,10 +24,10 @@ export interface UpdateGlobalConfigAdminAccounts {
 
 export function updateGlobalConfigAdmin(
   accounts: UpdateGlobalConfigAdminAccounts,
-  remainingAccounts: Array<IAccountMeta | IAccountSignerMeta> = [],
+  remainingAccounts: Array<AccountMeta | AccountSignerMeta> = [],
   programAddress: Address = PROGRAM_ID
 ) {
-  const keys: Array<IAccountMeta | IAccountSignerMeta> = [
+  const keys: Array<AccountMeta | AccountSignerMeta> = [
     {
       address: accounts.pendingGlobalAdmin.address,
       role: 2,
@@ -34,8 +36,7 @@ export function updateGlobalConfigAdmin(
     { address: accounts.globalConfig, role: 1 },
     ...remainingAccounts,
   ]
-  const identifier = Buffer.from([184, 87, 23, 193, 156, 238, 175, 119])
-  const data = identifier
-  const ix: IInstruction = { accounts: keys, programAddress, data }
+  const data = DISCRIMINATOR
+  const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

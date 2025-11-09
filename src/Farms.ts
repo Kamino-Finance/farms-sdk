@@ -5,7 +5,7 @@ import {
   Base58EncodedBytes,
   GetProgramAccountsDatasizeFilter,
   GetProgramAccountsMemcmpFilter,
-  IInstruction,
+  Instruction,
   none,
   Option,
   Rpc,
@@ -1088,7 +1088,7 @@ export class Farms {
     farm: Address,
     user: Address = authority.address,
     delegatee: Address = user,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const userState = await getUserStatePDA(this._farmsProgramId, farm, user);
 
     const ix = farmOperations.initializeUser(
@@ -1108,7 +1108,7 @@ export class Farms {
     amountLamports: Decimal,
     stakeTokenMint: Address,
     scopePrices: Option<Address>,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const farmVault = await getFarmVaultPDA(
       this._farmsProgramId,
       farm,
@@ -1143,7 +1143,7 @@ export class Farms {
     farm: Address,
     amountLamports: Decimal,
     scopePrices: Option<Address>,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const userStatePk = await getUserStatePDA(
       this._farmsProgramId,
       farm,
@@ -1165,7 +1165,7 @@ export class Farms {
     userState: Address,
     farmState: Address,
     stakeTokenMint: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const userTokenAta = await getAssociatedTokenAddress(
       user.address,
       stakeTokenMint,
@@ -1198,9 +1198,9 @@ export class Farms {
     isDelegated: boolean,
     rewardIndex = -1,
     delegatees?: Address[],
-  ): Promise<[[Address, IInstruction][], IInstruction[]]> {
-    const ixns: IInstruction[] = [];
-    const ataIxns: [Address, IInstruction][] = [];
+  ): Promise<[[Address, Instruction][], Instruction[]]> {
+    const ixns: Instruction[] = [];
+    const ataIxns: [Address, Instruction][] = [];
 
     const userStatesAndKeys = isDelegated
       ? await this.getUserStateKeysForDelegatedFarm(
@@ -1280,12 +1280,12 @@ export class Farms {
     farm: Address,
     isDelegated: boolean,
     delegatees?: Address[],
-  ): Promise<Array<IInstruction>> {
+  ): Promise<Array<Instruction>> {
     const farmState = await FarmState.fetch(this._connection, farm);
     const userStatesAndKeys = isDelegated
       ? await this.getUserStateKeysForDelegatedFarm(user, farm, delegatees)
       : [await this.getUserStateKeyForUndelegatedFarm(user, farm)];
-    const ixs = new Array<IInstruction>();
+    const ixs = new Array<Instruction>();
     // hardcoded as a hotfix for JTO release;
     // TODO: replace by proper fix
     const jitoFarm = address("Cik985zLyHYdv5Hs73BUWUcMHMhgfBNwbcCYyvBjV2tt");
@@ -1368,7 +1368,7 @@ export class Farms {
     user: TransactionSigner,
     userState: Address,
     newUser: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const userStateData = await UserState.fetch(
       this._connection,
       userState,
@@ -1427,12 +1427,12 @@ export class Farms {
   async transferOwnershipAllUserStatesIx(
     user: TransactionSigner,
     newUser: Address,
-  ): Promise<Array<IInstruction>> {
+  ): Promise<Array<Instruction>> {
     const userStates = await this.getAllUserStatesForUser(user.address);
 
     const farms = await this.getFarmStatesFromUserStates(userStates);
 
-    const ixs = new Array<IInstruction>();
+    const ixs = new Array<Instruction>();
     for (let index = 0; index < userStates.length; index++) {
       const farmAddress = userStates[index].userState.farmState;
       const farmState = farms.find((farm) => farm.key === farmAddress);
@@ -1469,7 +1469,7 @@ export class Farms {
     farm: TransactionSigner,
     globalConfig: Address,
     stakeTokenMint: Address,
-  ): Promise<IInstruction[]> {
+  ): Promise<Instruction[]> {
     const farmVault = await getFarmVaultPDA(
       this._farmsProgramId,
       farm.address,
@@ -1480,7 +1480,7 @@ export class Farms {
       farm.address,
     );
 
-    let ixs: IInstruction[] = [];
+    let ixs: Instruction[] = [];
     ixs.push(
       await createKeypairRentExemptIx(
         this.getConnection(),
@@ -1509,13 +1509,13 @@ export class Farms {
     farm: TransactionSigner,
     globalConfig: Address,
     farmDelegate: TransactionSigner,
-  ): Promise<IInstruction[]> {
+  ): Promise<Instruction[]> {
     const farmVaultAuthority = await getFarmAuthorityPDA(
       this._farmsProgramId,
       farm.address,
     );
 
-    let ixs: IInstruction[] = [];
+    let ixs: Instruction[] = [];
     ixs.push(
       await createKeypairRentExemptIx(
         this.getConnection(),
@@ -1544,7 +1544,7 @@ export class Farms {
     farm: Address,
     mint: Address,
     tokenProgram: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const globalConfigState = await GlobalConfig.fetch(
       this._connection,
       globalConfig,
@@ -1591,7 +1591,7 @@ export class Farms {
     decimalsOverride: number = -1,
     tokenProgramOverride: Address = TOKEN_PROGRAM_ADDRESS,
     scopePricesOverride: Option<Address> = none(),
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     let decimals = decimalsOverride;
 
     let rewardIndex = rewardIndexOverride;
@@ -1658,7 +1658,7 @@ export class Farms {
     userState: Address,
     rewardMint: Address,
     amountLamports: BN,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const rewardIndex = farmState.farmState.rewardInfos.findIndex(
       (r) => r.token.mint === rewardMint,
     );
@@ -1682,7 +1682,7 @@ export class Farms {
     decimalsOverride: number = -1,
     tokenProgramOverride: Address = TOKEN_PROGRAM_ADDRESS,
     scopePricesOverride: Option<Address> = none(),
-  ): Promise<IInstruction[]> {
+  ): Promise<Instruction[]> {
     let decimals = decimalsOverride;
     let tokenProgram = tokenProgramOverride;
 
@@ -1751,7 +1751,7 @@ export class Farms {
     rewardIndexOverride: number = -1,
     scopePricesOverride: Option<Address> = none(),
     newFarm: boolean = false,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     let rewardIndex = rewardIndexOverride;
     let scopePrices = scopePricesOverride;
     if (rewardIndex == -1 && !newFarm) {
@@ -1786,7 +1786,7 @@ export class Farms {
   async refreshFarmIx(
     farm: Address,
     scopePrices: Option<Address>,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     return farmOperations.refreshFarm(farm, scopePrices);
   }
 
@@ -1794,15 +1794,15 @@ export class Farms {
     userState: Address,
     farmState: Address,
     scopePrices: Option<Address>,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     return farmOperations.refreshUserState(userState, farmState, scopePrices);
   }
 
   async createGlobalConfigIxs(
     admin: TransactionSigner,
     globalConfig: TransactionSigner,
-  ): Promise<IInstruction[]> {
-    let ixs: IInstruction[] = [];
+  ): Promise<Instruction[]> {
+    let ixs: Instruction[] = [];
 
     ixs.push(
       await createKeypairRentExemptIx(
@@ -1836,7 +1836,7 @@ export class Farms {
     mode: GlobalConfigOptionKind,
     flagValue: string,
     flagValueType: GlobalConfigFlagValueType,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const ix = farmOperations.updateGlobalConfig(
       admin,
       globalConfig,
@@ -1851,7 +1851,7 @@ export class Farms {
   async updateGlobalConfigAdminIx(
     admin: TransactionSigner,
     globalConfig: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     return farmOperations.updateGlobalConfigAdmin(admin, globalConfig);
   }
 
@@ -1860,7 +1860,7 @@ export class Farms {
     globalConfig: Address,
     farm: Address,
     newSecondDelegatedAuthority: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     return farmOperations.updateSecondDelegatedAuthority(
       admin,
       globalConfig,
@@ -1872,7 +1872,7 @@ export class Farms {
   async updateFarmAdminIx(
     admin: TransactionSigner,
     farm: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     return farmOperations.updateFarmAdmin(admin, farm);
   }
 
@@ -1883,7 +1883,7 @@ export class Farms {
     rewardTokenProgram: Address,
     amount: BN,
     withdrawAta?: Address,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const treasuryVault = await getTreasuryVaultPDA(
       this._farmsProgramId,
       globalConfig,
@@ -1917,7 +1917,7 @@ export class Farms {
     rewardMint: Address,
     farm: Address,
     rewardsPerSecond: number,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const farmsClient = new Farms(this._connection);
 
     const farmState = await FarmState.fetch(
@@ -1981,7 +1981,7 @@ export class Farms {
     rewardMint: Address,
     farm: Address,
     amountToTopUp: Decimal,
-  ): Promise<IInstruction> {
+  ): Promise<Instruction> {
     const farmState = await FarmState.fetch(
       this._connection,
       farm,
