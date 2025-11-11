@@ -148,6 +148,16 @@ export async function getTokenAccountBalance(
   );
 }
 
+export async function getTokenAccountBalanceLamports(
+  rpc: Rpc<GetTokenAccountBalanceApi>,
+  tokenAccount: Address,
+): Promise<number> {
+  const tokenAccountBalance = await rpc
+    .getTokenAccountBalance(tokenAccount)
+    .send();
+  return new Decimal(tokenAccountBalance.value.amount).toNumber();
+}
+
 export async function getSolBalanceInLamports(
   rpc: Rpc<GetBalanceApi>,
   account: Address,
