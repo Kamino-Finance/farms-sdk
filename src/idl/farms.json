@@ -1,5 +1,5 @@
 {
-  "version": "1.6.3",
+  "version": "1.6.4",
   "name": "farms",
   "instructions": [
     {
@@ -422,6 +422,10 @@
         },
         {
           "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "expectedRewardIssuedUnclaimed",
           "type": "u64"
         }
       ]
@@ -1407,11 +1411,20 @@
             "type": "u64"
           },
           {
+            "name": "rewardsIssuedCumulative",
+            "type": {
+              "array": [
+                "u64",
+                10
+              ]
+            }
+          },
+          {
             "name": "padding1",
             "type": {
               "array": [
                 "u64",
-                50
+                40
               ]
             }
           }
@@ -2134,6 +2147,11 @@
       "code": 6066,
       "name": "HarvestingNotPermissionlessPayerMismatch",
       "msg": "Harvesting is not permissionless, payer does not match user state owner"
+    },
+    {
+      "code": 6067,
+      "name": "CurrentRewardIssuedUnclaimedMismatch",
+      "msg": "Current reward issued unclaimed does not match expected value"
     }
   ]
 }

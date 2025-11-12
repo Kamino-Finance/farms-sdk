@@ -66,6 +66,7 @@ export type CustomError =
   | InvalidDelegatedAuthorityUpdate
   | UserTokenAccountOwnerMismatch
   | HarvestingNotPermissionlessPayerMismatch
+  | CurrentRewardIssuedUnclaimedMismatch
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -846,6 +847,17 @@ export class HarvestingNotPermissionlessPayerMismatch extends Error {
   }
 }
 
+export class CurrentRewardIssuedUnclaimedMismatch extends Error {
+  static readonly code = 6067
+  readonly code = 6067
+  readonly name = "CurrentRewardIssuedUnclaimedMismatch"
+  readonly msg = "Current reward issued unclaimed does not match expected value"
+
+  constructor(readonly logs?: string[]) {
+    super("6067: Current reward issued unclaimed does not match expected value")
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -982,6 +994,8 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new UserTokenAccountOwnerMismatch(logs)
     case 6066:
       return new HarvestingNotPermissionlessPayerMismatch(logs)
+    case 6067:
+      return new CurrentRewardIssuedUnclaimedMismatch(logs)
   }
 
   return null

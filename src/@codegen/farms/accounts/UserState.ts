@@ -57,6 +57,7 @@ export interface UserStateFields {
   /** Delegatee used for initialisation - useful to check against */
   delegatee: Address
   lastStakeTs: BN
+  rewardsIssuedCumulative: Array<BN>
   padding1: Array<BN>
 }
 
@@ -102,6 +103,7 @@ export interface UserStateJSON {
   /** Delegatee used for initialisation - useful to check against */
   delegatee: string
   lastStakeTs: string
+  rewardsIssuedCumulative: Array<string>
   padding1: Array<string>
 }
 
@@ -147,6 +149,7 @@ export class UserState {
   /** Delegatee used for initialisation - useful to check against */
   readonly delegatee: Address
   readonly lastStakeTs: BN
+  readonly rewardsIssuedCumulative: Array<BN>
   readonly padding1: Array<BN>
 
   static readonly discriminator = Buffer.from([
@@ -170,7 +173,8 @@ export class UserState {
     borsh.u64("bump"),
     borshAddress("delegatee"),
     borsh.u64("lastStakeTs"),
-    borsh.array(borsh.u64(), 50, "padding1"),
+    borsh.array(borsh.u64(), 10, "rewardsIssuedCumulative"),
+    borsh.array(borsh.u64(), 40, "padding1"),
   ])
 
   constructor(fields: UserStateFields) {
@@ -190,6 +194,7 @@ export class UserState {
     this.bump = fields.bump
     this.delegatee = fields.delegatee
     this.lastStakeTs = fields.lastStakeTs
+    this.rewardsIssuedCumulative = fields.rewardsIssuedCumulative
     this.padding1 = fields.padding1
   }
 
@@ -257,6 +262,7 @@ export class UserState {
       bump: dec.bump,
       delegatee: dec.delegatee,
       lastStakeTs: dec.lastStakeTs,
+      rewardsIssuedCumulative: dec.rewardsIssuedCumulative,
       padding1: dec.padding1,
     })
   }
@@ -284,6 +290,9 @@ export class UserState {
       bump: this.bump.toString(),
       delegatee: this.delegatee,
       lastStakeTs: this.lastStakeTs.toString(),
+      rewardsIssuedCumulative: this.rewardsIssuedCumulative.map((item) =>
+        item.toString()
+      ),
       padding1: this.padding1.map((item) => item.toString()),
     }
   }
@@ -310,6 +319,9 @@ export class UserState {
       bump: new BN(obj.bump),
       delegatee: address(obj.delegatee),
       lastStakeTs: new BN(obj.lastStakeTs),
+      rewardsIssuedCumulative: obj.rewardsIssuedCumulative.map(
+        (item) => new BN(item)
+      ),
       padding1: obj.padding1.map((item) => new BN(item)),
     })
   }

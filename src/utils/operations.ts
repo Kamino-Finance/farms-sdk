@@ -287,6 +287,7 @@ export function rewardUserOnce(
   userState: Address,
   rewardIndex: number,
   amount: BN,
+  expectedRewardIssuedUnclaimed: BN,
 ): IInstruction {
   let accounts: RewardUserOnceAccounts = {
     delegateAuthority,
@@ -297,6 +298,7 @@ export function rewardUserOnce(
   let args: RewardUserOnceArgs = {
     amount,
     rewardIndex: new BN(rewardIndex),
+    expectedRewardIssuedUnclaimed,
   };
 
   return rewardUserOnceIx(args, accounts);

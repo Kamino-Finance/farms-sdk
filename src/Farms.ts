@@ -1658,6 +1658,7 @@ export class Farms {
     userState: Address,
     rewardMint: Address,
     amountLamports: BN,
+    expectedRewardIssuedUnclaimed: BN,
   ): Promise<Instruction> {
     const rewardIndex = farmState.farmState.rewardInfos.findIndex(
       (r) => r.token.mint === rewardMint,
@@ -1669,6 +1670,7 @@ export class Farms {
       userState,
       rewardIndex,
       amountLamports,
+      expectedRewardIssuedUnclaimed,
     );
     return ix;
   }

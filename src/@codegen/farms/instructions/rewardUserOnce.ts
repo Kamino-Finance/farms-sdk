@@ -20,6 +20,7 @@ export const DISCRIMINATOR = Buffer.from([219, 137, 57, 22, 94, 186, 96, 114])
 export interface RewardUserOnceArgs {
   rewardIndex: BN
   amount: BN
+  expectedRewardIssuedUnclaimed: BN
 }
 
 export interface RewardUserOnceAccounts {
@@ -31,6 +32,7 @@ export interface RewardUserOnceAccounts {
 export const layout = borsh.struct([
   borsh.u64("rewardIndex"),
   borsh.u64("amount"),
+  borsh.u64("expectedRewardIssuedUnclaimed"),
 ])
 
 export function rewardUserOnce(
@@ -54,6 +56,7 @@ export function rewardUserOnce(
     {
       rewardIndex: args.rewardIndex,
       amount: args.amount,
+      expectedRewardIssuedUnclaimed: args.expectedRewardIssuedUnclaimed,
     },
     buffer
   )
