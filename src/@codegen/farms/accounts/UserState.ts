@@ -57,6 +57,12 @@ export interface UserStateFields {
   /** Delegatee used for initialisation - useful to check against */
   delegatee: Address
   lastStakeTs: BN
+  /**
+   * Cumulative rewards issued to the user - ONLY used for stats/analytics
+   * DO NOT USE IN ANY CALCULATIONS
+   * Old userStates will have this field populated only from the point of release
+   * not reflecting any historical data before this was released
+   */
   rewardsIssuedCumulative: Array<BN>
   padding1: Array<BN>
 }
@@ -103,6 +109,12 @@ export interface UserStateJSON {
   /** Delegatee used for initialisation - useful to check against */
   delegatee: string
   lastStakeTs: string
+  /**
+   * Cumulative rewards issued to the user - ONLY used for stats/analytics
+   * DO NOT USE IN ANY CALCULATIONS
+   * Old userStates will have this field populated only from the point of release
+   * not reflecting any historical data before this was released
+   */
   rewardsIssuedCumulative: Array<string>
   padding1: Array<string>
 }
@@ -149,6 +161,12 @@ export class UserState {
   /** Delegatee used for initialisation - useful to check against */
   readonly delegatee: Address
   readonly lastStakeTs: BN
+  /**
+   * Cumulative rewards issued to the user - ONLY used for stats/analytics
+   * DO NOT USE IN ANY CALCULATIONS
+   * Old userStates will have this field populated only from the point of release
+   * not reflecting any historical data before this was released
+   */
   readonly rewardsIssuedCumulative: Array<BN>
   readonly padding1: Array<BN>
 

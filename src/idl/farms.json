@@ -1,5 +1,5 @@
 {
-  "version": "1.6.4",
+  "version": "1.6.5",
   "name": "farms",
   "instructions": [
     {
@@ -1412,6 +1412,12 @@
           },
           {
             "name": "rewardsIssuedCumulative",
+            "docs": [
+              "Cumulative rewards issued to the user - ONLY used for stats/analytics",
+              "DO NOT USE IN ANY CALCULATIONS",
+              "Old userStates will have this field populated only from the point of release",
+              "not reflecting any historical data before this was released"
+            ],
             "type": {
               "array": [
                 "u64",
