@@ -118,10 +118,9 @@ export async function getSeasonFarmsData(
       continue;
     }
 
-    // Get reward decimals for proper conversion
     const rewardDecimals =
       farmState.rewardInfos[rewardIndex].token.decimals.toNumber();
-    const decimalDivisor = new Decimal(10).pow(rewardDecimals);
+    const rewardDecimalFactor = new Decimal(10).pow(rewardDecimals);
 
     const totalFarmVestingCalculation = calculateVestingAtTime(
       new Decimal(totalUsersAllocations),
@@ -135,20 +134,20 @@ export async function getSeasonFarmsData(
     );
     const farmRewardVaultBalance = new Decimal(
       farmRewardVaultBalanceLamports,
-    ).div(decimalDivisor);
+    ).div(rewardDecimalFactor);
 
     const farmRewardsIssuedCumulative = new Decimal(
       farmState.rewardInfos[rewardIndex].rewardsIssuedCumulative.toString(),
-    ).div(decimalDivisor);
+    ).div(rewardDecimalFactor);
 
     const farmRewardsIssuedUnclaimed = new Decimal(
       farmState.rewardInfos[rewardIndex].rewardsIssuedUnclaimed.toString(),
-    ).div(decimalDivisor);
+    ).div(rewardDecimalFactor);
 
     // this will not decrease from claims - this only increases when rewards are issued via the refresh rewards process, which will do nothing for season farms, hence rewardsAvailable will show us how much was topped up in total to the farm
     const rewardsAvailable = new Decimal(
       farmState.rewardInfos[rewardIndex].rewardsAvailable.toString(),
-    ).div(decimalDivisor);
+    ).div(rewardDecimalFactor);
     const rewardsClaimedFromVault = rewardsAvailable.minus(
       farmRewardVaultBalance,
     );
@@ -160,7 +159,7 @@ export async function getSeasonFarmsData(
     );
 
     const totalClaimableAllocation =
-      totalFarmVestingCalculation.claimableAmount.div(decimalDivisor);
+      totalFarmVestingCalculation.claimableAmount.div(rewardDecimalFactor);
     const isTotalIssuedCummulativeLessOrThanClaimable =
       farmRewardsIssuedCumulative.lessThanOrEqualTo(totalClaimableAllocation);
     const isTotalIssuedUnclaimedLessOrThanClaimable =
@@ -191,6 +190,7 @@ export async function getSeasonFarmsData(
     let numberOfFullyVestedUsers = 0;
     let numberOfUsersForfited = 0;
     let numberOfUsersWithUnexpectedUnclaimedAmounts = 0;
+    let numberOfUsersWithUnexpectedCumulativeAmounts = 0;
     let totalForfeitures = new Decimal(0);
     for (const ua of userAllocations) {
       let isUserFullyVested = false;
@@ -198,6 +198,7 @@ export async function getSeasonFarmsData(
       let hasUserClaimed = false;
       let hasUserForfited = false;
       let isUserRewardsIssuedUnclaimedExpected = false;
+      let isUserRewardsIssuedCumulativeExpected = false;
       const userStatePda = await getUserStatePDA(
         farmsClient.getProgramID(),
         seasonFarmAddress,
@@ -209,6 +210,9 @@ export async function getSeasonFarmsData(
         isUserInitialized = false;
         continue;
       }
+      const userAllocationDecimal = new Decimal(ua.allocationLamports).div(
+        rewardDecimalFactor,
+      );
 
       const userAllocationVestingCalculation = calculateVestingAtTime(
         new Decimal(ua.allocationLamports),
@@ -216,7 +220,9 @@ export async function getSeasonFarmsData(
         seasonFarm.vestingConfig,
       );
       const userTotalClaimableAtStatsTs =
-        userAllocationVestingCalculation.claimableAmount.div(decimalDivisor);
+        userAllocationVestingCalculation.claimableAmount.div(
+          rewardDecimalFactor,
+        );
       const userDefaultLastClaimTs = getUserStateDefaultLastClaimTs(
         farmState,
         userState,
@@ -224,15 +230,14 @@ export async function getSeasonFarmsData(
       if (
         userState.lastClaimTs[rewardIndex].toNumber() > userDefaultLastClaimTs
       ) {
-        const userForfeituresAtLastClaimTs = calculateVestingAtTime(
-          new Decimal(ua.allocationLamports),
-          userState.lastClaimTs[rewardIndex].toNumber(),
-          seasonFarm.vestingConfig,
+        const userTotalClaimedDecimal = new Decimal(
+          userState.rewardsIssuedCumulative[rewardIndex].toString(),
+        ).div(rewardDecimalFactor);
+        const userForfeitureDecimal = userAllocationDecimal.sub(
+          userTotalClaimedDecimal,
         );
-        const userForfeiture =
-          userForfeituresAtLastClaimTs.forfeitableAmount.div(decimalDivisor);
-        totalForfeitures = totalForfeitures.plus(userForfeiture);
-        if (userForfeiture.greaterThan(0)) {
+        totalForfeitures = totalForfeitures.plus(userForfeitureDecimal);
+        if (userForfeitureDecimal.greaterThan(0)) {
           hasUserForfited = true;
           numberOfUsersForfited += 1;
         }
@@ -240,27 +245,29 @@ export async function getSeasonFarmsData(
         hasUserClaimed = true;
         const userRewardsIssuedUnclaimed = new Decimal(
           userState.rewardsIssuedUnclaimed[rewardIndex].toString(),
-        ).div(decimalDivisor);
+        ).div(rewardDecimalFactor);
         isUserRewardsIssuedUnclaimedExpected =
           userRewardsIssuedUnclaimed.equals(0);
       } else {
         const userRewardsIssuedUnclaimed = new Decimal(
           userState.rewardsIssuedUnclaimed[rewardIndex].toString(),
-        ).div(decimalDivisor);
+        ).div(rewardDecimalFactor);
         isUserRewardsIssuedUnclaimedExpected =
           userRewardsIssuedUnclaimed.lessThanOrEqualTo(
             userTotalClaimableAtStatsTs,
           );
       }
+      isUserRewardsIssuedCumulativeExpected = new Decimal(
+        userState.rewardsIssuedCumulative[rewardIndex].toString(),
+      )
+        .div(rewardDecimalFactor)
+        .lessThanOrEqualTo(userTotalClaimableAtStatsTs);
 
       const hasClaimedAfterVestingEnd =
         userState.lastClaimTs[rewardIndex].toNumber() > vestingEndTsSeconds;
-      const userAllocationDecimal = new Decimal(ua.allocationLamports).div(
-        decimalDivisor,
-      );
       const userRewardsIssuedUnclaimed = new Decimal(
         userState.rewardsIssuedUnclaimed[rewardIndex].toString(),
-      ).div(decimalDivisor);
+      ).div(rewardDecimalFactor);
       const isFullyVestedAndAwarded =
         userTotalClaimableAtStatsTs.equals(userRewardsIssuedUnclaimed) &&
         userTotalClaimableAtStatsTs.equals(userAllocationDecimal) &&
@@ -275,6 +282,8 @@ export async function getSeasonFarmsData(
 
       numberOfUsersWithUnexpectedUnclaimedAmounts +=
         isUserRewardsIssuedUnclaimedExpected ? 0 : 1;
+      numberOfUsersWithUnexpectedCumulativeAmounts +=
+        isUserRewardsIssuedCumulativeExpected ? 0 : 1;
 
       userStats.push({
         userAddress: ua.address,
@@ -285,6 +294,7 @@ export async function getSeasonFarmsData(
         isUserFullyVested,
         userTotalClaimableAtStatsTs,
         isUserRewardsIssuedUnclaimedExpected,
+        isUserRewardsIssuedCumulativeExpected,
       });
     }
 
@@ -312,6 +322,7 @@ export async function getSeasonFarmsData(
         numberOfUsersWithUnexpectedUnclaimedAmounts,
         numberOfUsersForfited,
         numberOfUsersClaimed,
+        numberOfUsersWithUnexpectedCumulativeAmounts,
         totalForfeitures,
         userStats,
       },
@@ -345,6 +356,7 @@ export interface SeasonFarmStats {
   numberOfUsersWithUnexpectedUnclaimedAmounts: number;
   numberOfUsersForfited: number;
   numberOfUsersClaimed: number;
+  numberOfUsersWithUnexpectedCumulativeAmounts: number;
 
   totalForfeitures: Decimal;
 
@@ -362,4 +374,5 @@ export interface UserStats {
   userTotalClaimableAtStatsTs: Decimal;
 
   isUserRewardsIssuedUnclaimedExpected: boolean;
+  isUserRewardsIssuedCumulativeExpected: boolean;
 }
