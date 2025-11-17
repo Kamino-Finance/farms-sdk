@@ -1,6 +1,10 @@
 import { backOff } from "exponential-backoff";
 import axios from "axios";
-import { calculateVestingAtTime, VestingConfig } from "./vestingUtils";
+import {
+  calculateVestingAtTime,
+  VestingCalculation,
+  VestingConfig,
+} from "./vestingUtils";
 import { Farms } from "../Farms";
 import { FarmState, UserState } from "../@codegen/farms/accounts";
 import { address, Address } from "@solana/kit";
@@ -325,6 +329,7 @@ export async function getSeasonFarmsData(
         numberOfUsersWithUnexpectedCumulativeAmounts,
         totalForfeitures,
         userStats,
+        totalFarmVestingCalculation,
       },
     });
   }
@@ -361,6 +366,8 @@ export interface SeasonFarmStats {
   totalForfeitures: Decimal;
 
   userStats: UserStats[];
+
+  totalFarmVestingCalculation: VestingCalculation;
 }
 
 export interface UserStats {
