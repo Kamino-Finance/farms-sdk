@@ -1304,13 +1304,6 @@ export class Farms {
         rewardIndex < farmState.numRewardTokens.toNumber();
         rewardIndex++
       ) {
-        if (
-          jitoFarm !== farm &&
-          farmState.rewardInfos[rewardIndex].rewardType ==
-            RewardType.Constant.discriminator
-        ) {
-          continue;
-        }
         const rewardMint = farmState.rewardInfos[rewardIndex].token.mint;
         const rewardTokenProgram =
           farmState.rewardInfos[rewardIndex].token.tokenProgram;
