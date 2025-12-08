@@ -961,6 +961,50 @@
       "args": []
     },
     {
+      "name": "closeEmptyUserState",
+      "accounts": [
+        {
+          "name": "signer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "The account that signs the transaction",
+            "- Non-delegated: user signs",
+            "- Delegated: delegated authority signs"
+          ]
+        },
+        {
+          "name": "userState",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "farmState",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The farm state account for validation"
+          ]
+        },
+        {
+          "name": "rentReceiver",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The account that receives the rent",
+            "- Non-delegated: user receives the rent",
+            "- Delegated: farm admin receives the rent"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "idlMissingTypes",
       "accounts": [
         {
@@ -2158,6 +2202,46 @@
       "code": 6067,
       "name": "CurrentRewardIssuedUnclaimedMismatch",
       "msg": "Current reward issued unclaimed does not match expected value"
+    },
+    {
+      "code": 6068,
+      "name": "CannotCloseUserStateStakeNonZero",
+      "msg": "Cannot close user state because staked amount is non-zero"
+    },
+    {
+      "code": 6069,
+      "name": "CannotCloseUserStatePendingUnstakes",
+      "msg": "Cannot close user state because there are pending unstake requests"
+    },
+    {
+      "code": 6070,
+      "name": "CannotCloseUserStatePendingDeposits",
+      "msg": "Cannot close user state because there are pending deposit requests"
+    },
+    {
+      "code": 6071,
+      "name": "CannotCloseUserStateUnharvestedRewards",
+      "msg": "Cannot close user state because there are unharvested rewards"
+    },
+    {
+      "code": 6072,
+      "name": "CannotCloseUserStateSignerNotOwner",
+      "msg": "Cannot close user state because signer is not the owner"
+    },
+    {
+      "code": 6073,
+      "name": "CannotCloseUserStateDelegatedSignerNotDelegateAuthority",
+      "msg": "Cannot close user state (delegated) because signer is not the delegate authority"
+    },
+    {
+      "code": 6074,
+      "name": "CannotCloseUserStateRentReceiverNotOwner",
+      "msg": "Cannot close user state because rent receiver is not the owner"
+    },
+    {
+      "code": 6075,
+      "name": "CannotCloseUserStateDelegatedRentReceiverNotAdmin",
+      "msg": "Cannot close user state (delegated) because rent receiver is not the admin"
     }
   ]
 }

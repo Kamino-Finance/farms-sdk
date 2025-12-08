@@ -67,6 +67,14 @@ export type CustomError =
   | UserTokenAccountOwnerMismatch
   | HarvestingNotPermissionlessPayerMismatch
   | CurrentRewardIssuedUnclaimedMismatch
+  | CannotCloseUserStateStakeNonZero
+  | CannotCloseUserStatePendingUnstakes
+  | CannotCloseUserStatePendingDeposits
+  | CannotCloseUserStateUnharvestedRewards
+  | CannotCloseUserStateSignerNotOwner
+  | CannotCloseUserStateDelegatedSignerNotDelegateAuthority
+  | CannotCloseUserStateRentReceiverNotOwner
+  | CannotCloseUserStateDelegatedRentReceiverNotAdmin
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -858,6 +866,109 @@ export class CurrentRewardIssuedUnclaimedMismatch extends Error {
   }
 }
 
+export class CannotCloseUserStateStakeNonZero extends Error {
+  static readonly code = 6068
+  readonly code = 6068
+  readonly name = "CannotCloseUserStateStakeNonZero"
+  readonly msg = "Cannot close user state because staked amount is non-zero"
+
+  constructor(readonly logs?: string[]) {
+    super("6068: Cannot close user state because staked amount is non-zero")
+  }
+}
+
+export class CannotCloseUserStatePendingUnstakes extends Error {
+  static readonly code = 6069
+  readonly code = 6069
+  readonly name = "CannotCloseUserStatePendingUnstakes"
+  readonly msg =
+    "Cannot close user state because there are pending unstake requests"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6069: Cannot close user state because there are pending unstake requests"
+    )
+  }
+}
+
+export class CannotCloseUserStatePendingDeposits extends Error {
+  static readonly code = 6070
+  readonly code = 6070
+  readonly name = "CannotCloseUserStatePendingDeposits"
+  readonly msg =
+    "Cannot close user state because there are pending deposit requests"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6070: Cannot close user state because there are pending deposit requests"
+    )
+  }
+}
+
+export class CannotCloseUserStateUnharvestedRewards extends Error {
+  static readonly code = 6071
+  readonly code = 6071
+  readonly name = "CannotCloseUserStateUnharvestedRewards"
+  readonly msg = "Cannot close user state because there are unharvested rewards"
+
+  constructor(readonly logs?: string[]) {
+    super("6071: Cannot close user state because there are unharvested rewards")
+  }
+}
+
+export class CannotCloseUserStateSignerNotOwner extends Error {
+  static readonly code = 6072
+  readonly code = 6072
+  readonly name = "CannotCloseUserStateSignerNotOwner"
+  readonly msg = "Cannot close user state because signer is not the owner"
+
+  constructor(readonly logs?: string[]) {
+    super("6072: Cannot close user state because signer is not the owner")
+  }
+}
+
+export class CannotCloseUserStateDelegatedSignerNotDelegateAuthority extends Error {
+  static readonly code = 6073
+  readonly code = 6073
+  readonly name = "CannotCloseUserStateDelegatedSignerNotDelegateAuthority"
+  readonly msg =
+    "Cannot close user state (delegated) because signer is not the delegate authority"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6073: Cannot close user state (delegated) because signer is not the delegate authority"
+    )
+  }
+}
+
+export class CannotCloseUserStateRentReceiverNotOwner extends Error {
+  static readonly code = 6074
+  readonly code = 6074
+  readonly name = "CannotCloseUserStateRentReceiverNotOwner"
+  readonly msg =
+    "Cannot close user state because rent receiver is not the owner"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6074: Cannot close user state because rent receiver is not the owner"
+    )
+  }
+}
+
+export class CannotCloseUserStateDelegatedRentReceiverNotAdmin extends Error {
+  static readonly code = 6075
+  readonly code = 6075
+  readonly name = "CannotCloseUserStateDelegatedRentReceiverNotAdmin"
+  readonly msg =
+    "Cannot close user state (delegated) because rent receiver is not the admin"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6075: Cannot close user state (delegated) because rent receiver is not the admin"
+    )
+  }
+}
+
 export function fromCode(code: number, logs?: string[]): CustomError | null {
   switch (code) {
     case 6000:
@@ -996,6 +1107,22 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new HarvestingNotPermissionlessPayerMismatch(logs)
     case 6067:
       return new CurrentRewardIssuedUnclaimedMismatch(logs)
+    case 6068:
+      return new CannotCloseUserStateStakeNonZero(logs)
+    case 6069:
+      return new CannotCloseUserStatePendingUnstakes(logs)
+    case 6070:
+      return new CannotCloseUserStatePendingDeposits(logs)
+    case 6071:
+      return new CannotCloseUserStateUnharvestedRewards(logs)
+    case 6072:
+      return new CannotCloseUserStateSignerNotOwner(logs)
+    case 6073:
+      return new CannotCloseUserStateDelegatedSignerNotDelegateAuthority(logs)
+    case 6074:
+      return new CannotCloseUserStateRentReceiverNotOwner(logs)
+    case 6075:
+      return new CannotCloseUserStateDelegatedRentReceiverNotAdmin(logs)
   }
 
   return null

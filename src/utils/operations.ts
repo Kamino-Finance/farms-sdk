@@ -75,6 +75,8 @@ import {
   RewardUserOnceAccounts,
   RewardUserOnceArgs,
   rewardUserOnce as rewardUserOnceIx,
+  CloseEmptyUserStateAccounts,
+  closeEmptyUserState as closeEmptyUserStateIx,
 } from "../@codegen/farms/instructions";
 import {
   DepositCapAmount,
@@ -333,6 +335,23 @@ export function withdrawReward(
   };
 
   return withdrawRewardIx(args, accounts);
+}
+
+export function closeEmptyUserState(
+  signer: TransactionSigner,
+  userState: Address,
+  farmState: Address,
+  rentReceiver: Address,
+): IInstruction {
+  let accounts: CloseEmptyUserStateAccounts = {
+    signer,
+    userState,
+    farmState,
+    rentReceiver,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+  };
+
+  return closeEmptyUserStateIx(accounts);
 }
 
 export function updateFarmConfig(

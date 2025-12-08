@@ -72,6 +72,8 @@ export type {
 } from "./withdrawReward"
 export { updateSecondDelegatedAuthority } from "./updateSecondDelegatedAuthority"
 export type { UpdateSecondDelegatedAuthorityAccounts } from "./updateSecondDelegatedAuthority"
+export { closeEmptyUserState } from "./closeEmptyUserState"
+export type { CloseEmptyUserStateAccounts } from "./closeEmptyUserState"
 export { idlMissingTypes } from "./idlMissingTypes"
 export type {
   IdlMissingTypesArgs,
