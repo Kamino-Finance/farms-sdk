@@ -1,4 +1,5 @@
-import BN from "bn.js";
+import { PROGRAM_ID as KLEND_PROGRAM_ID } from "@kamino-finance/klend-sdk";
+import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
 import {
   Address,
   address,
@@ -15,37 +16,10 @@ import {
   TransactionSigner,
   UnixTimestamp,
 } from "@solana/kit";
-import {
-  calculateCurrentRewardPerToken,
-  calculatePendingRewards,
-  checkIfAccountExists,
-  isValidPubkey,
-  collToLamportsDecimal,
-  createKeypairRentExemptIx,
-  DEFAULT_PUBLIC_KEY,
-  getFarmAuthorityPDA,
-  getFarmVaultPDA,
-  getRewardVaultPDA,
-  getTreasuryAuthorityPDA,
-  getTreasuryVaultPDA,
-  getUserStatePDA,
-  GlobalConfigFlagValueType,
-  lamportsToCollDecimal,
-  scaleDownWads,
-  SIZE_FARM_STATE,
-  SIZE_GLOBAL_CONFIG,
-  decimalToBN,
-} from "./utils";
-import {
-  FarmIncentives,
-  IncentiveRewardStats,
-  UserFarm,
-  UserAndKey,
-  FarmAndKey,
-} from "./models";
-import { FarmState, GlobalConfig, UserState } from "./@codegen/farms/accounts";
-import * as farmOperations from "./utils/operations";
+import BN from "bn.js";
 import Decimal from "decimal.js";
+import { FarmState, GlobalConfig, UserState } from "./@codegen/farms/accounts";
+import { PROGRAM_ID } from "./@codegen/farms/programId";
 import {
   FarmConfigOption,
   FarmConfigOptionKind,
@@ -55,29 +29,62 @@ import {
   RewardType,
   TimeUnit,
 } from "./@codegen/farms/types/index";
-import { PROGRAM_ID } from "./@codegen/farms/programId";
-import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
-import { chunks } from "./utils/arrayUtils";
-import { batchFetch } from "./utils/batch";
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddress,
-} from "./utils/token";
 import {
   SECONDS_IN_A_DAY,
   SECONDS_IN_A_MONTH,
   SECONDS_IN_A_WEEK,
   SECONDS_IN_A_YEAR,
 } from "./consts";
+import {
+  FarmAndKey,
+  FarmIncentives,
+  IncentiveRewardStats,
+  UserAndKey,
+  UserFarm,
+} from "./models";
+import {
+  calculateCurrentRewardPerToken,
+  calculatePendingRewards,
+  checkIfAccountExists,
+  collToLamportsDecimal,
+  createKeypairRentExemptIx,
+  decimalToBN,
+  DEFAULT_PUBLIC_KEY,
+  getFarmAuthorityPDA,
+  getFarmVaultPDA,
+  getRewardVaultPDA,
+  getTreasuryAuthorityPDA,
+  getTreasuryVaultPDA,
+  getUserStatePDA,
+  GlobalConfigFlagValueType,
+  isValidPubkey,
+  lamportsToCollDecimal,
+  scaleDownWads,
+  SIZE_FARM_STATE,
+  SIZE_GLOBAL_CONFIG,
+} from "./utils";
+import { chunks } from "./utils/arrayUtils";
+import { batchFetch } from "./utils/batch";
+import * as farmOperations from "./utils/operations";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddress,
+} from "./utils/token";
 
-import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { getScopePricesFromFarm } from "./utils/option";
-import { getRewardsApyForStrategy } from "./utils";
-import { Connection } from "@solana/web3.js";
-import { U64_MAX } from "./utils/consts";
-import { decompress } from "fzstd";
-import { backOff, IBackOffOptions } from "exponential-backoff";
 import { ZERO_BN } from "@kamino-finance/kliquidity-sdk";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { Connection } from "@solana/web3.js";
+import { backOff, IBackOffOptions } from "exponential-backoff";
+import { decompress } from "fzstd";
+import { getRewardsApyForStrategy } from "./utils";
+import { U64_MAX } from "./utils/consts";
+import {
+  getAllFarmConfigsAndStates,
+  IFarmResponse,
+  ILogger,
+  noOpLogger,
+} from "./utils/farms";
+import { getScopePricesFromFarm } from "./utils/option";
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
@@ -361,6 +368,29 @@ export class Farms {
         }
       })
       .filter((x) => x !== null) as FarmAndKey[];
+  }
+
+  async getAllConfigsAndStates({
+    klendProgramId,
+    logger = noOpLogger,
+  }: {
+    klendProgramId?: Address;
+    logger?: ILogger;
+  }): Promise<{
+    collateralFarms: IFarmResponse[];
+    debtFarms: IFarmResponse[];
+    strategyFarms: IFarmResponse[];
+    earnVaultFarms: IFarmResponse[];
+    standaloneFarms: IFarmResponse[];
+  }> {
+    const allFarms = await this.getAllFarmStates();
+
+    return getAllFarmConfigsAndStates({
+      allFarms,
+      klendProgramId: klendProgramId ?? KLEND_PROGRAM_ID,
+      rpc: this._connection,
+      logger,
+    });
   }
 
   async getAllFarmStatesByPubkeys(keys: Address[]): Promise<FarmAndKey[]> {
@@ -799,14 +829,9 @@ export class Farms {
     return userFarms;
   }
 
-  async getRewardsAPYForStrategy(
-    strategy: Address,
-    rpcEndpoint: string,
-  ): Promise<FarmIncentives> {
-    const legacyConnection = new Connection(rpcEndpoint);
+  async getRewardsAPYForStrategy(strategy: Address): Promise<FarmIncentives> {
     const farmIncentives = await getRewardsApyForStrategy(
       this.getConnection(),
-      legacyConnection,
       strategy,
     );
     return farmIncentives;

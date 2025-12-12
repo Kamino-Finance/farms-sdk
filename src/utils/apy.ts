@@ -5,14 +5,12 @@ import Decimal from "decimal.js";
 import { FarmIncentives } from "../models";
 import { FarmState } from "../@codegen/farms/accounts";
 import { getTokenPrice } from "./price";
-import { Connection } from "@solana/web3.js";
 
 export async function getRewardsApyForStrategy(
   connection: Rpc<SolanaRpcApi>,
-  legacyConnection: Connection,
   strategy: Address,
 ): Promise<FarmIncentives> {
-  const kaminoClient = new Kamino("mainnet-beta", connection, legacyConnection);
+  const kaminoClient = new Kamino("mainnet-beta", connection);
 
   const strategyState = await kaminoClient.getStrategyByAddress(strategy);
 
