@@ -341,7 +341,7 @@ export async function getMarketsFromApiData(
   programId: Address,
 ): Promise<{ marketName: string; key: Address }[]> {
   const markets: { marketName: string; key: Address }[] = [];
-  await getMarketsFromApi({ programId, source: "API" }).then(
+  await getMarketsFromApi({ api: { programId, source: "API" } }).then(
     function (response) {
       for (const marketData of response) {
         markets.push({

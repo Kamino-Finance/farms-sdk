@@ -38,7 +38,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.28.0",
     "@coral-xyz/borsh": "^0.28.0",
-    "@kamino-finance/kliquidity-sdk": "^8.5.3",
+    "@kamino-finance/kliquidity-sdk": "^8.5.7",
     "@kamino-finance/scope-sdk": "^9.1.0",
     "@solana-program/address-lookup-table": "^0.7.0",
     "@solana-program/compute-budget": "^0.8.0",

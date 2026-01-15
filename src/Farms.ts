@@ -1311,13 +1311,12 @@ export class Farms {
       ? await this.getUserStateKeysForDelegatedFarm(user, farm, delegatees)
       : [await this.getUserStateKeyForUndelegatedFarm(user, farm)];
     const ixs = new Array<Instruction>();
-    // hardcoded as a hotfix for JTO release;
-    // TODO: replace by proper fix
-    const jitoFarm = address("Cik985zLyHYdv5Hs73BUWUcMHMhgfBNwbcCYyvBjV2tt");
 
     if (!farmState) {
       throw new Error(`Farm not found ${farm.toString()}`);
     }
+
+    const timestampSeconds = Date.now() / 1000;
 
     for (
       let userStateIndex = 0;
@@ -1332,6 +1331,21 @@ export class Farms {
         const rewardMint = farmState.rewardInfos[rewardIndex].token.mint;
         const rewardTokenProgram =
           farmState.rewardInfos[rewardIndex].token.tokenProgram;
+
+        const rewardMinClaimDurationSeconds =
+          farmState.rewardInfos[rewardIndex].minClaimDurationSeconds.toNumber();
+
+        const lastClaimTsSeconds =
+          userStatesAndKeys[userStateIndex].userState.lastClaimTs[
+            rewardIndex
+          ].toNumber();
+
+        if (
+          timestampSeconds - lastClaimTsSeconds <
+          rewardMinClaimDurationSeconds
+        ) {
+          continue;
+        }
 
         const userRewardAta = await getAssociatedTokenAddress(
           user,
