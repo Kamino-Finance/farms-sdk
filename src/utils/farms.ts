@@ -1,13 +1,7 @@
-import {
-  getMarketsFromApi,
-  KaminoManager,
-  KaminoMarket,
-  U64_MAX,
-} from "@kamino-finance/klend-sdk";
-import { Kamino } from "@kamino-finance/kliquidity-sdk";
-import { Address, address, Rpc, SolanaRpcApi } from "@solana/kit";
+import { Address } from "@solana/kit";
 import Decimal from "decimal.js";
 import { FarmAndKey, FarmState, lamportsToCollDecimal, RewardType } from "..";
+import { U64_MAX } from "./consts";
 import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
 export interface IFarmResponse {
@@ -29,29 +23,49 @@ export const noOpLogger: ILogger = {
   error: () => {},
 };
 
-export async function getAllFarmConfigsAndStates({
+export interface ReserveInfo {
+  address: Address;
+  symbol: string;
+  farmCollateral: Address;
+  farmDebt: Address;
+}
+
+export interface MarketWithReserves {
+  address: Address;
+  marketName: string;
+  reserves: ReserveInfo[];
+}
+
+export interface StrategyInfo {
+  address: Address;
+  farm: Address;
+}
+
+export interface VaultInfo {
+  address: Address;
+  vaultFarm: Address;
+}
+
+export function getAllFarmConfigsAndStates({
   allFarms,
-  klendProgramId,
-  rpc,
   logger,
+  markets,
+  strategies,
+  vaults,
 }: {
   allFarms: FarmAndKey[];
-  klendProgramId: Address;
-  rpc: Rpc<SolanaRpcApi>;
   logger: ILogger;
-}): Promise<{
+  markets: MarketWithReserves[];
+  strategies: StrategyInfo[];
+  vaults: VaultInfo[];
+}): {
   collateralFarms: IFarmResponse[];
   debtFarms: IFarmResponse[];
   strategyFarms: IFarmResponse[];
   earnVaultFarms: IFarmResponse[];
   standaloneFarms: IFarmResponse[];
-}> {
-  const lendingMarkets = await getMarketsFromApiData(klendProgramId);
-
+} {
   const fetchedFarmsForStratsAndReserves = new Set<Address>([]);
-
-  // Download for lending based on API markets - all reserve farms
-  const maxConcurrent = 30; // Increased for better performance
 
   const collateralFarms: IFarmResponse[] = [];
   const debtFarms: IFarmResponse[] = [];
@@ -59,251 +73,146 @@ export async function getAllFarmConfigsAndStates({
   const earnVaultFarms: IFarmResponse[] = [];
   const standaloneFarms: IFarmResponse[] = [];
 
-  // Process markets in parallel
-  const marketPromises: Promise<void>[] = [];
-  for (let m = 0; m < lendingMarkets.length; m++) {
-    const market = lendingMarkets[m];
-    const processMarket = async () => {
-      const kaminoMarket = await KaminoMarket.load(
-        rpc,
-        market.key,
-        450,
-        klendProgramId,
-      );
-
-      if (!kaminoMarket) {
-        throw new Error("Kamino market not found");
-      }
-
-      // Collect all reserve farm fetching tasks
-      const reservePromises: Promise<void>[] = [];
-      for (const reserve of kaminoMarket.reserves.values()) {
-        const processReserve = async () => {
-          if (reserve.state.farmCollateral !== DEFAULT_PUBLIC_KEY) {
-            fetchedFarmsForStratsAndReserves.add(reserve.state.farmCollateral);
-            const farmStateCollateral = allFarms.find(
-              (farm) => farm.key === reserve.state.farmCollateral,
-            )?.farmState;
-            if (farmStateCollateral) {
-              const farmConfig = getFarmConfigType(
-                reserve.state.farmCollateral,
-                farmStateCollateral,
-                {
-                  type: "reserve",
-                  reserve: reserve.address,
-                  reserveSymbol: reserve.symbol,
-                  market: market.key,
-                  marketName: market.marketName,
-                  strategy: undefined,
-                  vault: undefined,
-                },
-              );
-              if (farmConfig.scopePrices !== DEFAULT_PUBLIC_KEY) {
-                logger.log(
-                  `farmPk: ${farmConfig.farmPubkey}  scopePrice: ${farmConfig.scopePrices}`,
-                );
-              }
-              collateralFarms.push({
-                config: farmConfig,
-                state: farmStateCollateral,
-              });
-            } else {
-              logger.log("Could not fetch farm", reserve.state.farmCollateral);
-            }
-          }
-          if (reserve.state.farmDebt !== DEFAULT_PUBLIC_KEY) {
-            fetchedFarmsForStratsAndReserves.add(reserve.state.farmDebt);
-            const farmStateDebt = allFarms.find(
-              (farm) => farm.key === reserve.state.farmDebt,
-            )?.farmState;
-            if (farmStateDebt) {
-              const farmConfig = getFarmConfigType(
-                reserve.state.farmDebt,
-                farmStateDebt,
-                {
-                  type: "reserve",
-                  reserve: reserve.address,
-                  reserveSymbol: reserve.symbol,
-                  market: market.key,
-                  marketName: market.marketName,
-                  strategy: undefined,
-                  vault: undefined,
-                },
-              );
-              if (farmConfig.scopePrices !== DEFAULT_PUBLIC_KEY) {
-                logger.log(
-                  `farmPk: ${farmConfig.farmPubkey}  scopePrice: ${farmConfig.scopePrices}`,
-                );
-              }
-              debtFarms.push({
-                config: farmConfig,
-                state: farmStateDebt,
-              });
-            } else {
-              logger.log("Could not fetch farm", reserve.state.farmDebt);
-            }
-          }
-        };
-
-        reservePromises.push(
-          processReserve().catch((err) => {
-            logger.error(`Error processing reserve ${reserve.address}:`, err);
-          }),
-        );
-
-        // Process in batches
-        if (reservePromises.length >= maxConcurrent) {
-          await Promise.all(reservePromises);
-          reservePromises.length = 0;
-        }
-      }
-      // Wait for remaining promises
-      if (reservePromises.length > 0) {
-        await Promise.all(reservePromises);
-      }
-    };
-
-    marketPromises.push(
-      processMarket().catch((err) => {
-        logger.error(`Error processing market ${market.marketName}:`, err);
-      }),
-    );
-
-    // Process markets in batches
-    if (
-      marketPromises.length >= maxConcurrent ||
-      m === lendingMarkets.length - 1
-    ) {
-      await Promise.all(marketPromises);
-      marketPromises.length = 0;
-    }
-  }
-
-  // Download for yvaults all strategy farms
-  const kamino = new Kamino("mainnet-beta", rpc);
-
-  let strategies = await kamino.getAllStrategiesWithFilters({
-    strategyCreationStatus: "LIVE",
-  });
-
-  const strategyPromises: Promise<void>[] = [];
-  for (let i = 0; i < strategies.length; i++) {
-    const strategy = strategies[i];
-    const processStrategy = async () => {
-      const farmAddress = strategy?.strategy?.farm;
-      if (!farmAddress) {
-        logger.warn(`Strategy ${strategy?.address} has no farm`);
-        return;
-      }
-      if (farmAddress !== DEFAULT_PUBLIC_KEY) {
-        fetchedFarmsForStratsAndReserves.add(farmAddress);
-        const farmState = allFarms.find(
-          (farm) => farm.key === farmAddress,
+  for (const market of markets) {
+    for (const reserve of market.reserves) {
+      if (reserve.farmCollateral !== DEFAULT_PUBLIC_KEY) {
+        fetchedFarmsForStratsAndReserves.add(reserve.farmCollateral);
+        const farmStateCollateral = allFarms.find(
+          (farm) => farm.key === reserve.farmCollateral,
         )?.farmState;
-        if (farmState) {
-          const farmConfig = getFarmConfigType(farmAddress, farmState, {
-            type: "strategy",
-            reserve: undefined,
-            reserveSymbol: undefined,
-            market: undefined,
-            marketName: undefined,
-            strategy: strategy.address,
-            vault: undefined,
-          });
-          // in case strategy is not set on farm side, we override value so we set on next upsert
-          farmConfig.strategyId = strategy.address;
+        if (farmStateCollateral) {
+          const farmConfig = getFarmConfigType(
+            reserve.farmCollateral,
+            farmStateCollateral,
+            {
+              type: "reserve",
+              reserve: reserve.address,
+              reserveSymbol: reserve.symbol,
+              market: market.address,
+              marketName: market.marketName,
+              strategy: undefined,
+              vault: undefined,
+            },
+          );
           if (farmConfig.scopePrices !== DEFAULT_PUBLIC_KEY) {
             logger.log(
               `farmPk: ${farmConfig.farmPubkey}  scopePrice: ${farmConfig.scopePrices}`,
             );
           }
-          strategyFarms.push({
+          collateralFarms.push({
             config: farmConfig,
-            state: farmState,
+            state: farmStateCollateral,
           });
         } else {
-          logger.log("Could not fetch farm", farmAddress);
+          logger.log("Could not fetch farm", reserve.farmCollateral);
         }
       }
-    };
-
-    strategyPromises.push(
-      processStrategy().catch((err) => {
-        logger.error(`Error processing strategy ${strategy.address}:`, err);
-      }),
-    );
-
-    // Process in batches
-    if (
-      strategyPromises.length >= maxConcurrent ||
-      i === strategies.length - 1
-    ) {
-      await Promise.all(strategyPromises);
-      strategyPromises.length = 0;
-    }
-  }
-
-  // download all vault farms
-  const manager = new KaminoManager(rpc, 400);
-  const vaults = await manager.getAllVaults();
-  const vaultPromises: Promise<void>[] = [];
-  for (let i = 0; i < vaults.length; i++) {
-    const vault = vaults[i];
-    const processVault = async () => {
-      const farmAddress = vault?.state?.vaultFarm;
-      if (!farmAddress) {
-        logger.warn(`Vault ${vault?.address} has no farm`);
-        return;
-      }
-      if (farmAddress !== DEFAULT_PUBLIC_KEY) {
-        fetchedFarmsForStratsAndReserves.add(farmAddress);
-
-        const farmState = allFarms.find(
-          (farm) => farm.key === farmAddress,
+      if (reserve.farmDebt !== DEFAULT_PUBLIC_KEY) {
+        fetchedFarmsForStratsAndReserves.add(reserve.farmDebt);
+        const farmStateDebt = allFarms.find(
+          (farm) => farm.key === reserve.farmDebt,
         )?.farmState;
-        if (farmState) {
-          const farmConfig = getFarmConfigType(farmAddress, farmState, {
-            type: "earnVault",
-            reserve: undefined,
-            reserveSymbol: undefined,
-            market: undefined,
-            marketName: undefined,
-            strategy: undefined,
-            vault: vault.address,
-          });
-          // in case vaultId is not set on farm side, we override value so we set on next upsert
-          farmConfig.vaultId = vault.address;
+        if (farmStateDebt) {
+          const farmConfig = getFarmConfigType(
+            reserve.farmDebt,
+            farmStateDebt,
+            {
+              type: "reserve",
+              reserve: reserve.address,
+              reserveSymbol: reserve.symbol,
+              market: market.address,
+              marketName: market.marketName,
+              strategy: undefined,
+              vault: undefined,
+            },
+          );
           if (farmConfig.scopePrices !== DEFAULT_PUBLIC_KEY) {
             logger.log(
               `farmPk: ${farmConfig.farmPubkey}  scopePrice: ${farmConfig.scopePrices}`,
             );
           }
-          earnVaultFarms.push({
+          debtFarms.push({
             config: farmConfig,
-            state: farmState,
+            state: farmStateDebt,
           });
         } else {
-          logger.log("Could not fetch farm", farmAddress);
+          logger.log("Could not fetch farm", reserve.farmDebt);
         }
       }
-    };
-
-    vaultPromises.push(
-      processVault().catch((err) => {
-        logger.error(`Error processing vault ${vault.address}:`, err);
-      }),
-    );
-
-    // Process in batches
-    if (vaultPromises.length >= maxConcurrent || i === vaults.length - 1) {
-      await Promise.all(vaultPromises);
-      vaultPromises.length = 0;
     }
   }
 
-  // Download all standalone farms
+  for (const strategy of strategies) {
+    const farmAddress = strategy.farm;
+    if (farmAddress !== DEFAULT_PUBLIC_KEY) {
+      fetchedFarmsForStratsAndReserves.add(farmAddress);
+      const farmState = allFarms.find(
+        (farm) => farm.key === farmAddress,
+      )?.farmState;
+      if (farmState) {
+        const farmConfig = getFarmConfigType(farmAddress, farmState, {
+          type: "strategy",
+          reserve: undefined,
+          reserveSymbol: undefined,
+          market: undefined,
+          marketName: undefined,
+          strategy: strategy.address,
+          vault: undefined,
+        });
+        // in case strategy is not set on farm side, we override value so we set on next upsert
+        farmConfig.strategyId = strategy.address;
+        if (farmConfig.scopePrices !== DEFAULT_PUBLIC_KEY) {
+          logger.log(
+            `farmPk: ${farmConfig.farmPubkey}  scopePrice: ${farmConfig.scopePrices}`,
+          );
+        }
+        strategyFarms.push({
+          config: farmConfig,
+          state: farmState,
+        });
+      } else {
+        logger.log("Could not fetch farm", farmAddress);
+      }
+    }
+  }
+
+  for (const vault of vaults) {
+    const farmAddress = vault.vaultFarm;
+    if (farmAddress !== DEFAULT_PUBLIC_KEY) {
+      fetchedFarmsForStratsAndReserves.add(farmAddress);
+
+      const farmState = allFarms.find(
+        (farm) => farm.key === farmAddress,
+      )?.farmState;
+      if (farmState) {
+        const farmConfig = getFarmConfigType(farmAddress, farmState, {
+          type: "earnVault",
+          reserve: undefined,
+          reserveSymbol: undefined,
+          market: undefined,
+          marketName: undefined,
+          strategy: undefined,
+          vault: vault.address,
+        });
+        // in case vaultId is not set on farm side, we override value so we set on next upsert
+        farmConfig.vaultId = vault.address;
+        if (farmConfig.scopePrices !== DEFAULT_PUBLIC_KEY) {
+          logger.log(
+            `farmPk: ${farmConfig.farmPubkey}  scopePrice: ${farmConfig.scopePrices}`,
+          );
+        }
+        earnVaultFarms.push({
+          config: farmConfig,
+          state: farmState,
+        });
+      } else {
+        logger.log("Could not fetch farm", farmAddress);
+      }
+    }
+  }
+
   for (const farmAndKey of allFarms) {
-    // skip farms already downloaded as part of reserves or strategies
+    // skip farms already processed as part of reserves, strategies, or vaults
     if (fetchedFarmsForStratsAndReserves.has(farmAndKey.key)) {
       continue;
     }
@@ -335,24 +244,6 @@ export async function getAllFarmConfigsAndStates({
     earnVaultFarms,
     standaloneFarms,
   };
-}
-
-export async function getMarketsFromApiData(
-  programId: Address,
-): Promise<{ marketName: string; key: Address }[]> {
-  const markets: { marketName: string; key: Address }[] = [];
-  await getMarketsFromApi({ api: { programId, source: "API" } }).then(
-    function (response) {
-      for (const marketData of response) {
-        markets.push({
-          marketName: marketData.description.replace(" ", "-"),
-          key: address(marketData.lendingMarket),
-        });
-      }
-    },
-  );
-
-  return markets;
 }
 
 export type FarmConfig = {

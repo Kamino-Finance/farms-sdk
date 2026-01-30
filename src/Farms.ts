@@ -1,4 +1,3 @@
-import { PROGRAM_ID as KLEND_PROGRAM_ID } from "@kamino-finance/klend-sdk";
 import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
 import {
   Address,
@@ -82,7 +81,10 @@ import {
   getAllFarmConfigsAndStates,
   IFarmResponse,
   ILogger,
+  MarketWithReserves,
   noOpLogger,
+  StrategyInfo,
+  VaultInfo,
 } from "./utils/farms";
 import { getScopePricesFromFarm } from "./utils/option";
 
@@ -370,11 +372,22 @@ export class Farms {
       .filter((x) => x !== null) as FarmAndKey[];
   }
 
+  /**
+   * Get all farm configs and states categorized by type where possible (otehrwise standalone)
+   * @param markets - Pre-fetched market data -> fetch via KaminoMarket.load() from klend-sdk
+   * @param strategies - Pre-fetched strategy data -> fetch via Kamino.getAllStrategiesWithFilters() from kliquidity-sdk
+   * @param vaults - Pre-fetched vault data -> fetch via KaminoManager.getAllVaults() from klend-sdk
+   * @param logger - Optional logger for debugging
+   */
   async getAllConfigsAndStates({
-    klendProgramId,
+    markets,
+    strategies,
+    vaults,
     logger = noOpLogger,
   }: {
-    klendProgramId?: Address;
+    markets: MarketWithReserves[];
+    strategies: StrategyInfo[];
+    vaults: VaultInfo[];
     logger?: ILogger;
   }): Promise<{
     collateralFarms: IFarmResponse[];
@@ -387,8 +400,9 @@ export class Farms {
 
     return getAllFarmConfigsAndStates({
       allFarms,
-      klendProgramId: klendProgramId ?? KLEND_PROGRAM_ID,
-      rpc: this._connection,
+      markets,
+      strategies,
+      vaults,
       logger,
     });
   }
