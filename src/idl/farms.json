@@ -425,7 +425,11 @@
           "type": "u64"
         },
         {
-          "name": "expectedRewardIssuedUnclaimed",
+          "name": "expectedRewardsIssuedCumulative",
+          "type": "u64"
+        },
+        {
+          "name": "userStateId",
           "type": "u64"
         }
       ]
@@ -2200,8 +2204,8 @@
     },
     {
       "code": 6067,
-      "name": "CurrentRewardIssuedUnclaimedMismatch",
-      "msg": "Current reward issued unclaimed does not match expected value"
+      "name": "RewardsIssuedCumulativeMismatch",
+      "msg": "Rewards issued cumulative does not match expected value"
     },
     {
       "code": 6068,
@@ -2242,6 +2246,21 @@
       "code": 6075,
       "name": "CannotCloseUserStateDelegatedRentReceiverNotAdmin",
       "msg": "Cannot close user state (delegated) because rent receiver is not the admin"
+    },
+    {
+      "code": 6076,
+      "name": "UserRewardTokenAccountMustBeAta",
+      "msg": "User reward token account must be an ATA when payer is not the owner"
+    },
+    {
+      "code": 6077,
+      "name": "RewardsIssuedCumulativeAtMax",
+      "msg": "Cannot reward user because rewards_issued_cumulative has reached maximum value"
+    },
+    {
+      "code": 6078,
+      "name": "UserStateIdMismatch",
+      "msg": "User state user id does not match expected value"
     }
   ]
 }

@@ -66,7 +66,7 @@ export type CustomError =
   | InvalidDelegatedAuthorityUpdate
   | UserTokenAccountOwnerMismatch
   | HarvestingNotPermissionlessPayerMismatch
-  | CurrentRewardIssuedUnclaimedMismatch
+  | RewardsIssuedCumulativeMismatch
   | CannotCloseUserStateStakeNonZero
   | CannotCloseUserStatePendingUnstakes
   | CannotCloseUserStatePendingDeposits
@@ -75,6 +75,9 @@ export type CustomError =
   | CannotCloseUserStateDelegatedSignerNotDelegateAuthority
   | CannotCloseUserStateRentReceiverNotOwner
   | CannotCloseUserStateDelegatedRentReceiverNotAdmin
+  | UserRewardTokenAccountMustBeAta
+  | RewardsIssuedCumulativeAtMax
+  | UserStateIdMismatch
 
 export class StakeZero extends Error {
   static readonly code = 6000
@@ -855,14 +858,14 @@ export class HarvestingNotPermissionlessPayerMismatch extends Error {
   }
 }
 
-export class CurrentRewardIssuedUnclaimedMismatch extends Error {
+export class RewardsIssuedCumulativeMismatch extends Error {
   static readonly code = 6067
   readonly code = 6067
-  readonly name = "CurrentRewardIssuedUnclaimedMismatch"
-  readonly msg = "Current reward issued unclaimed does not match expected value"
+  readonly name = "RewardsIssuedCumulativeMismatch"
+  readonly msg = "Rewards issued cumulative does not match expected value"
 
   constructor(readonly logs?: string[]) {
-    super("6067: Current reward issued unclaimed does not match expected value")
+    super("6067: Rewards issued cumulative does not match expected value")
   }
 }
 
@@ -966,6 +969,45 @@ export class CannotCloseUserStateDelegatedRentReceiverNotAdmin extends Error {
     super(
       "6075: Cannot close user state (delegated) because rent receiver is not the admin"
     )
+  }
+}
+
+export class UserRewardTokenAccountMustBeAta extends Error {
+  static readonly code = 6076
+  readonly code = 6076
+  readonly name = "UserRewardTokenAccountMustBeAta"
+  readonly msg =
+    "User reward token account must be an ATA when payer is not the owner"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6076: User reward token account must be an ATA when payer is not the owner"
+    )
+  }
+}
+
+export class RewardsIssuedCumulativeAtMax extends Error {
+  static readonly code = 6077
+  readonly code = 6077
+  readonly name = "RewardsIssuedCumulativeAtMax"
+  readonly msg =
+    "Cannot reward user because rewards_issued_cumulative has reached maximum value"
+
+  constructor(readonly logs?: string[]) {
+    super(
+      "6077: Cannot reward user because rewards_issued_cumulative has reached maximum value"
+    )
+  }
+}
+
+export class UserStateIdMismatch extends Error {
+  static readonly code = 6078
+  readonly code = 6078
+  readonly name = "UserStateIdMismatch"
+  readonly msg = "User state user id does not match expected value"
+
+  constructor(readonly logs?: string[]) {
+    super("6078: User state user id does not match expected value")
   }
 }
 
@@ -1106,7 +1148,7 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
     case 6066:
       return new HarvestingNotPermissionlessPayerMismatch(logs)
     case 6067:
-      return new CurrentRewardIssuedUnclaimedMismatch(logs)
+      return new RewardsIssuedCumulativeMismatch(logs)
     case 6068:
       return new CannotCloseUserStateStakeNonZero(logs)
     case 6069:
@@ -1123,6 +1165,12 @@ export function fromCode(code: number, logs?: string[]): CustomError | null {
       return new CannotCloseUserStateRentReceiverNotOwner(logs)
     case 6075:
       return new CannotCloseUserStateDelegatedRentReceiverNotAdmin(logs)
+    case 6076:
+      return new UserRewardTokenAccountMustBeAta(logs)
+    case 6077:
+      return new RewardsIssuedCumulativeAtMax(logs)
+    case 6078:
+      return new UserStateIdMismatch(logs)
   }
 
   return null
