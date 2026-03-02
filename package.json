@@ -14,7 +14,7 @@
     "build:test": "yarn tsc --project ./tests/tsconfig.json",
     "build:watch": "yarn tsc -w",
     "cli": "yarn tsx ../farms-cli/src/client.ts",
-    "test": "DEBUG=true yarn build:test && npx ts-mocha ./tests/**/tests_*.ts --parallel --exit",
+    "test": "yarn build:test && yarn ts-mocha tests/**/*.test.ts --exit",
     "codegen": "node codegen.mjs"
   },
   "repository": {
@@ -55,7 +55,14 @@
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.3.9",
     "@codama/renderers-js": "^1.7.0",
-    "codama": "^1.5.1"
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "chai": "^6.2.2",
+    "codama": "^1.5.1",
+    "mocha": "^11.7.5",
+    "ts-mocha": "^11.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "publishConfig": {
     "access": "public"
