@@ -14,8 +14,6 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -31,11 +29,8 @@ import {
   type TransactionSigner,
   type WritableAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 import {
   getFarmConfigOptionDecoder,
   getFarmConfigOptionEncoder,
@@ -176,7 +171,7 @@ export function getIdlMissingTypesInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -185,8 +180,8 @@ export function getIdlMissingTypesInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("globalAdmin", accounts.globalAdmin),
-      getAccountMeta("globalConfig", accounts.globalConfig),
+      getAccountMeta(accounts.globalAdmin),
+      getAccountMeta(accounts.globalConfig),
     ],
     data: getIdlMissingTypesInstructionDataEncoder().encode(
       args as IdlMissingTypesInstructionDataArgs,
@@ -220,13 +215,8 @@ export function parseIdlMissingTypesInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedIdlMissingTypesInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 2) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 2,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

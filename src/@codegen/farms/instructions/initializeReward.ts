@@ -14,8 +14,6 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -32,11 +30,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const INITIALIZE_REWARD_DISCRIMINATOR = new Uint8Array([
   95, 135, 192, 196, 242, 129, 230, 68,
@@ -232,7 +227,7 @@ export function getInitializeRewardInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Resolve default values.
@@ -252,20 +247,17 @@ export function getInitializeRewardInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("farmAdmin", accounts.farmAdmin),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("globalConfig", accounts.globalConfig),
-      getAccountMeta("rewardMint", accounts.rewardMint),
-      getAccountMeta("rewardVault", accounts.rewardVault),
-      getAccountMeta("rewardTreasuryVault", accounts.rewardTreasuryVault),
-      getAccountMeta("farmVaultsAuthority", accounts.farmVaultsAuthority),
-      getAccountMeta(
-        "treasuryVaultsAuthority",
-        accounts.treasuryVaultsAuthority,
-      ),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
-      getAccountMeta("systemProgram", accounts.systemProgram),
-      getAccountMeta("rent", accounts.rent),
+      getAccountMeta(accounts.farmAdmin),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.globalConfig),
+      getAccountMeta(accounts.rewardMint),
+      getAccountMeta(accounts.rewardVault),
+      getAccountMeta(accounts.rewardTreasuryVault),
+      getAccountMeta(accounts.farmVaultsAuthority),
+      getAccountMeta(accounts.treasuryVaultsAuthority),
+      getAccountMeta(accounts.tokenProgram),
+      getAccountMeta(accounts.systemProgram),
+      getAccountMeta(accounts.rent),
     ],
     data: getInitializeRewardInstructionDataEncoder().encode({}),
     programAddress,
@@ -315,13 +307,8 @@ export function parseInitializeRewardInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedInitializeRewardInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 11) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 11,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

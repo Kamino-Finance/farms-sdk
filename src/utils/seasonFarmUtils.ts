@@ -6,7 +6,11 @@ import {
   VestingConfig,
 } from "./vestingUtils";
 import { Farms } from "../Farms";
-import { FarmState, UserState } from "../@codegen/farms/accounts";
+import {
+  FarmState,
+  UserState,
+  fetchMaybeFarmState,
+} from "../@codegen/farms/accounts";
 import { address, Address } from "@solana/kit";
 import Decimal from "decimal.js";
 import { getTokenAccountBalanceLamports, getUserStatePDA } from "./utils";
@@ -107,13 +111,14 @@ export async function getSeasonFarmsData(
 
   for (const seasonFarm of seasonFarms) {
     const seasonFarmAddress = address(seasonFarm.farmAddress);
-    const farmState = await FarmState.fetch(
+    const farmAccount = await fetchMaybeFarmState(
       farmsClient.getConnection(),
       seasonFarmAddress,
     );
-    if (!farmState) {
+    if (!farmAccount.exists) {
       throw new Error(`Farm not found: ${seasonFarm.farmAddress}`);
     }
+    const farmState = farmAccount.data;
     const rewardIndex = getRewardIndexInFarm(farmState, seasonFarm.rewardMint);
     if (rewardIndex === -1) {
       console.warn(

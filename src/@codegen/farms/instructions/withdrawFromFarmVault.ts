@@ -16,8 +16,6 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -34,11 +32,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const WITHDRAW_FROM_FARM_VAULT_DISCRIMINATOR = new Uint8Array([
   22, 82, 128, 250, 86, 79, 124, 78,
@@ -193,7 +188,7 @@ export function getWithdrawFromFarmVaultInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -208,12 +203,12 @@ export function getWithdrawFromFarmVaultInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("withdrawAuthority", accounts.withdrawAuthority),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("withdrawerTokenAccount", accounts.withdrawerTokenAccount),
-      getAccountMeta("farmVault", accounts.farmVault),
-      getAccountMeta("farmVaultsAuthority", accounts.farmVaultsAuthority),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta(accounts.withdrawAuthority),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.withdrawerTokenAccount),
+      getAccountMeta(accounts.farmVault),
+      getAccountMeta(accounts.farmVaultsAuthority),
+      getAccountMeta(accounts.tokenProgram),
     ],
     data: getWithdrawFromFarmVaultInstructionDataEncoder().encode(
       args as WithdrawFromFarmVaultInstructionDataArgs,
@@ -255,13 +250,8 @@ export function parseWithdrawFromFarmVaultInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedWithdrawFromFarmVaultInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 6) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 6,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

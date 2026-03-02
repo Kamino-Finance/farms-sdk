@@ -2,10 +2,7 @@ import { Address, generateKeyPairSigner, TransactionSigner } from "@solana/kit";
 import { getFarmAuthorityPDA, getFarmVaultPDA } from "./utils";
 import { FarmAccounts } from "./utils";
 import { DEFAULT_PUBLIC_KEY } from "./pubkey";
-import { PROGRAM_ID as FARMS_PROGRAM_ID } from "../@codegen/farms/programId";
-
-export const SIZE_GLOBAL_CONFIG = 2136n;
-export const SIZE_FARM_STATE = 8336n;
+import { FARMS_PROGRAM_ADDRESS as FARMS_PROGRAM_ID } from "../@codegen/farms/programs";
 
 export async function createFarmAccounts(
   farmsProgramId: Address,

@@ -16,8 +16,6 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -34,11 +32,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const ADD_REWARDS_DISCRIMINATOR = new Uint8Array([
   88, 186, 25, 227, 38, 137, 81, 23,
@@ -210,7 +205,7 @@ export function getAddRewardsInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -225,14 +220,14 @@ export function getAddRewardsInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("payer", accounts.payer),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("rewardMint", accounts.rewardMint),
-      getAccountMeta("rewardVault", accounts.rewardVault),
-      getAccountMeta("farmVaultsAuthority", accounts.farmVaultsAuthority),
-      getAccountMeta("payerRewardTokenAta", accounts.payerRewardTokenAta),
-      getAccountMeta("scopePrices", accounts.scopePrices),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta(accounts.payer),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.rewardMint),
+      getAccountMeta(accounts.rewardVault),
+      getAccountMeta(accounts.farmVaultsAuthority),
+      getAccountMeta(accounts.payerRewardTokenAta),
+      getAccountMeta(accounts.scopePrices),
+      getAccountMeta(accounts.tokenProgram),
     ],
     data: getAddRewardsInstructionDataEncoder().encode(
       args as AddRewardsInstructionDataArgs,
@@ -278,13 +273,8 @@ export function parseAddRewardsInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedAddRewardsInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 8) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 8,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

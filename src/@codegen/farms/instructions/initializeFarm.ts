@@ -14,8 +14,6 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -32,11 +30,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const INITIALIZE_FARM_DISCRIMINATOR = new Uint8Array([
   252, 28, 185, 172, 244, 74, 117, 165,
@@ -206,7 +201,7 @@ export function getInitializeFarmInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Resolve default values.
@@ -226,15 +221,15 @@ export function getInitializeFarmInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("farmAdmin", accounts.farmAdmin),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("globalConfig", accounts.globalConfig),
-      getAccountMeta("farmVault", accounts.farmVault),
-      getAccountMeta("farmVaultsAuthority", accounts.farmVaultsAuthority),
-      getAccountMeta("tokenMint", accounts.tokenMint),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
-      getAccountMeta("systemProgram", accounts.systemProgram),
-      getAccountMeta("rent", accounts.rent),
+      getAccountMeta(accounts.farmAdmin),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.globalConfig),
+      getAccountMeta(accounts.farmVault),
+      getAccountMeta(accounts.farmVaultsAuthority),
+      getAccountMeta(accounts.tokenMint),
+      getAccountMeta(accounts.tokenProgram),
+      getAccountMeta(accounts.systemProgram),
+      getAccountMeta(accounts.rent),
     ],
     data: getInitializeFarmInstructionDataEncoder().encode({}),
     programAddress,
@@ -280,13 +275,8 @@ export function parseInitializeFarmInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedInitializeFarmInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 9) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 9,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

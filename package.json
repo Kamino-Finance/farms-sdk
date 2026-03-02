@@ -15,9 +15,7 @@
     "build:watch": "yarn tsc -w",
     "cli": "yarn tsx ../farms-cli/src/client.ts",
     "test": "DEBUG=true yarn build:test && npx ts-mocha ./tests/**/tests_*.ts --parallel --exit",
-    "anchor-client-gen": "npx tsx ./node_modules/anchor-client-gen/src/main.ts",
-    "codegen": "rm -rf src/@codegen && yarn codegen:farms",
-    "codegen:farms": "yarn anchor-client-gen src/idl/farms.json ./src/@codegen/farms --program-id FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr"
+    "codegen": "node codegen.mjs"
   },
   "repository": {
     "type": "git",
@@ -49,7 +47,6 @@
     "@solana-program/token-2022": "^0.4.2",
     "@solana/compat": "^2.1.1",
     "@solana/kit": "^2.3.0",
-    "@solana/program-client-core": "^6.1.0",
     "@solana/sysvars": "^2.1.1",
     "@solana/web3.js": "^1.98.2",
     "bn.js": "^5.2.1",
@@ -58,8 +55,7 @@
   },
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.3.9",
-    "@codama/renderers-js": "^2.0.3",
-    "anchor-client-gen": "git+https://github.com/kklas/anchor-client-gen.git#f66cc87",
+    "@codama/renderers-js": "^1.7.0",
     "codama": "^1.5.1"
   },
   "publishConfig": {

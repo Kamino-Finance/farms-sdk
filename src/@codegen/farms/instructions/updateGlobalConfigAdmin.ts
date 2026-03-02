@@ -14,8 +14,6 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -31,11 +29,8 @@ import {
   type TransactionSigner,
   type WritableAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const UPDATE_GLOBAL_CONFIG_ADMIN_DISCRIMINATOR = new Uint8Array([
   184, 87, 23, 193, 156, 238, 175, 119,
@@ -135,14 +130,14 @@ export function getUpdateGlobalConfigAdminInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("pendingGlobalAdmin", accounts.pendingGlobalAdmin),
-      getAccountMeta("globalConfig", accounts.globalConfig),
+      getAccountMeta(accounts.pendingGlobalAdmin),
+      getAccountMeta(accounts.globalConfig),
     ],
     data: getUpdateGlobalConfigAdminInstructionDataEncoder().encode({}),
     programAddress,
@@ -174,13 +169,8 @@ export function parseUpdateGlobalConfigAdminInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedUpdateGlobalConfigAdminInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 2) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 2,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

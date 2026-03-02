@@ -14,8 +14,6 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -32,11 +30,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const UPDATE_SECOND_DELEGATED_AUTHORITY_DISCRIMINATOR = new Uint8Array([
   127, 26, 6, 181, 203, 248, 117, 64,
@@ -157,19 +152,16 @@ export function getUpdateSecondDelegatedAuthorityInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("globalAdmin", accounts.globalAdmin),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("globalConfig", accounts.globalConfig),
-      getAccountMeta(
-        "newSecondDelegatedAuthority",
-        accounts.newSecondDelegatedAuthority,
-      ),
+      getAccountMeta(accounts.globalAdmin),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.globalConfig),
+      getAccountMeta(accounts.newSecondDelegatedAuthority),
     ],
     data: getUpdateSecondDelegatedAuthorityInstructionDataEncoder().encode({}),
     programAddress,
@@ -205,13 +197,8 @@ export function parseUpdateSecondDelegatedAuthorityInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedUpdateSecondDelegatedAuthorityInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 4) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 4,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

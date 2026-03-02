@@ -1,4 +1,4 @@
-import { fromCode as fromFarmsErrorCode } from "../@codegen/farms/errors/index";
+import { getFarmsErrorMessage } from "../@codegen/farms/errors/farms";
 import {
   Address,
   IInstruction,
@@ -15,9 +15,16 @@ import {
   isAddress,
 } from "@solana/kit";
 import { Decimal } from "decimal.js";
-import { GlobalConfig, UserState, FarmState } from "../@codegen/farms/accounts";
+import {
+  FarmState,
+  UserState,
+  GlobalConfig,
+  fetchMaybeFarmState,
+  fetchMaybeUserState,
+  fetchMaybeGlobalConfig,
+} from "../@codegen/farms/accounts";
 import { getCreateAccountInstruction } from "@solana-program/system";
-import { PROGRAM_ID as FARMS_PROGRAM_ID } from "../@codegen/farms/programId";
+import { FARMS_PROGRAM_ADDRESS } from "../@codegen/farms/programs";
 import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
 import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
@@ -116,20 +123,13 @@ export async function mapAnchorError<T>(fn: Promise<T>): Promise<T> {
       JSON.stringify(e),
     );
     if (isCustomProgramError) {
-      let error: any;
       if (!isNaN(Number(errorCode))) {
-        error = fromFarmsErrorCode(Number(errorCode));
-        throw new Error(error);
-      } else if (Number(errorCode) >= 6000 && Number(errorCode) <= 7000) {
-        errorCode[errorCode.length - 2] === "0"
-          ? (errorCode = errorCode.slice(-1))
-          : (errorCode = errorCode.slice(-2));
-        // @ts-ignore
-        error = FarmsIdl.errors![errorCode].msg;
-        throw new Error(error);
-      } else {
-        throw new Error(e);
+        const errorMessage = getFarmsErrorMessage(Number(errorCode) as any);
+        if (errorMessage) {
+          throw new Error(errorMessage);
+        }
       }
+      throw new Error(e);
     }
     throw e;
   }
@@ -204,32 +204,32 @@ export async function accountExist(
 
 export async function fetchFarmStateWithRetry(
   rpc: Rpc<GetAccountInfoApi>,
-  address: Address,
+  addr: Address,
 ): Promise<FarmState | null> {
-  return fetchWithRetry(
-    async () => await FarmState.fetch(rpc, address),
-    address,
-  );
+  return fetchWithRetry(async () => {
+    const account = await fetchMaybeFarmState(rpc, addr);
+    return account.exists ? account.data : null;
+  }, addr);
 }
 
 export async function fetchGlobalConfigWithRetry(
   rpc: Rpc<GetAccountInfoApi>,
-  address: Address,
-): Promise<GlobalConfig> {
-  return fetchWithRetry(
-    async () => await GlobalConfig.fetch(rpc, address),
-    address,
-  );
+  addr: Address,
+): Promise<GlobalConfig | null> {
+  return fetchWithRetry(async () => {
+    const account = await fetchMaybeGlobalConfig(rpc, addr);
+    return account.exists ? account.data : null;
+  }, addr);
 }
 
 export async function fetchUserStateWithRetry(
   rpc: Rpc<GetAccountInfoApi>,
-  address: Address,
-): Promise<UserState> {
-  return fetchWithRetry(
-    async () => await UserState.fetch(rpc, address),
-    address,
-  );
+  addr: Address,
+): Promise<UserState | null> {
+  return fetchWithRetry(async () => {
+    const account = await fetchMaybeUserState(rpc, addr);
+    return account.exists ? account.data : null;
+  }, addr);
 }
 
 export async function getTreasuryVaultPDA(
@@ -376,7 +376,7 @@ export async function createKeypairRentExemptIx(
   payer: TransactionSigner,
   account: TransactionSigner,
   size: bigint,
-  programId: Address = FARMS_PROGRAM_ID,
+  programId: Address = FARMS_PROGRAM_ADDRESS,
 ): Promise<IInstruction> {
   return getCreateAccountInstruction({
     payer: payer,

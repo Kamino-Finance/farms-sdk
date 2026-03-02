@@ -11,69 +11,12 @@ import {
   containsBytes,
   fixEncoderSize,
   getBytesEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT,
-  SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION,
-  SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE,
-  SolanaError,
   type Address,
-  type ClientWithPayer,
-  type ClientWithRpc,
-  type ClientWithTransactionPlanning,
-  type ClientWithTransactionSending,
-  type GetAccountInfoApi,
-  type GetMultipleAccountsApi,
   type Instruction,
   type InstructionWithData,
   type ReadonlyUint8Array,
 } from "@solana/kit";
 import {
-  addSelfFetchFunctions,
-  addSelfPlanAndSendFunctions,
-  type SelfFetchFunctions,
-  type SelfPlanAndSendFunctions,
-} from "@solana/program-client-core";
-import {
-  getFarmStateCodec,
-  getGlobalConfigCodec,
-  getOraclePricesCodec,
-  getUserStateCodec,
-  type FarmState,
-  type FarmStateArgs,
-  type GlobalConfig,
-  type GlobalConfigArgs,
-  type OraclePrices,
-  type OraclePricesArgs,
-  type UserState,
-  type UserStateArgs,
-} from "../accounts";
-import {
-  getAddRewardsInstruction,
-  getCloseEmptyUserStateInstruction,
-  getDepositToFarmVaultInstruction,
-  getHarvestRewardInstruction,
-  getIdlMissingTypesInstruction,
-  getInitializeFarmDelegatedInstruction,
-  getInitializeFarmInstruction,
-  getInitializeGlobalConfigInstruction,
-  getInitializeRewardInstruction,
-  getInitializeUserInstruction,
-  getRefreshFarmInstruction,
-  getRefreshUserStateInstruction,
-  getRewardUserOnceInstruction,
-  getSetStakeDelegatedInstruction,
-  getStakeInstruction,
-  getTransferOwnershipInstruction,
-  getUnstakeInstruction,
-  getUpdateFarmAdminInstruction,
-  getUpdateFarmConfigInstruction,
-  getUpdateGlobalConfigAdminInstruction,
-  getUpdateGlobalConfigInstruction,
-  getUpdateSecondDelegatedAuthorityInstruction,
-  getWithdrawFromFarmVaultInstruction,
-  getWithdrawRewardInstruction,
-  getWithdrawSlashedAmountInstruction,
-  getWithdrawTreasuryInstruction,
-  getWithdrawUnstakedDepositsInstruction,
   parseAddRewardsInstruction,
   parseCloseEmptyUserStateInstruction,
   parseDepositToFarmVaultInstruction,
@@ -101,16 +44,6 @@ import {
   parseWithdrawSlashedAmountInstruction,
   parseWithdrawTreasuryInstruction,
   parseWithdrawUnstakedDepositsInstruction,
-  type AddRewardsInput,
-  type CloseEmptyUserStateInput,
-  type DepositToFarmVaultInput,
-  type HarvestRewardInput,
-  type IdlMissingTypesInput,
-  type InitializeFarmDelegatedInput,
-  type InitializeFarmInput,
-  type InitializeGlobalConfigInput,
-  type InitializeRewardInput,
-  type InitializeUserInput,
   type ParsedAddRewardsInstruction,
   type ParsedCloseEmptyUserStateInstruction,
   type ParsedDepositToFarmVaultInstruction,
@@ -138,26 +71,9 @@ import {
   type ParsedWithdrawSlashedAmountInstruction,
   type ParsedWithdrawTreasuryInstruction,
   type ParsedWithdrawUnstakedDepositsInstruction,
-  type RefreshFarmInput,
-  type RefreshUserStateInput,
-  type RewardUserOnceInput,
-  type SetStakeDelegatedInput,
-  type StakeInput,
-  type TransferOwnershipInput,
-  type UnstakeInput,
-  type UpdateFarmAdminInput,
-  type UpdateFarmConfigInput,
-  type UpdateGlobalConfigAdminInput,
-  type UpdateGlobalConfigInput,
-  type UpdateSecondDelegatedAuthorityInput,
-  type WithdrawFromFarmVaultInput,
-  type WithdrawRewardInput,
-  type WithdrawSlashedAmountInput,
-  type WithdrawTreasuryInput,
-  type WithdrawUnstakedDepositsInput,
 } from "../instructions";
 
-export const FARMS_PROGRAM_ADDRESS = "" as Address<"">;
+export const FARMS_PROGRAM_ADDRESS = "FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr" as Address<"FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr">;
 
 export enum FarmsAccount {
   FarmState,
@@ -214,9 +130,8 @@ export function identifyFarmsAccount(
   ) {
     return FarmsAccount.OraclePrices;
   }
-  throw new SolanaError(
-    SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT,
-    { accountData: data, programName: "farms" },
+  throw new Error(
+    "The provided account could not be identified as a farms account.",
   );
 }
 
@@ -551,9 +466,8 @@ export function identifyFarmsInstruction(
   ) {
     return FarmsInstruction.IdlMissingTypes;
   }
-  throw new SolanaError(
-    SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION,
-    { instructionData: data, programName: "farms" },
+  throw new Error(
+    "The provided instruction could not be identified as a farms instruction.",
   );
 }
 
@@ -835,300 +749,8 @@ export function parseFarmsInstruction<TProgram extends string>(
       };
     }
     default:
-      throw new SolanaError(
-        SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE,
-        { instructionType: instructionType as string, programName: "farms" },
+      throw new Error(
+        `Unrecognized instruction type: ${instructionType as string}`,
       );
   }
 }
-
-export type FarmsPlugin = {
-  accounts: FarmsPluginAccounts;
-  instructions: FarmsPluginInstructions;
-};
-
-export type FarmsPluginAccounts = {
-  farmState: ReturnType<typeof getFarmStateCodec> &
-    SelfFetchFunctions<FarmStateArgs, FarmState>;
-  globalConfig: ReturnType<typeof getGlobalConfigCodec> &
-    SelfFetchFunctions<GlobalConfigArgs, GlobalConfig>;
-  userState: ReturnType<typeof getUserStateCodec> &
-    SelfFetchFunctions<UserStateArgs, UserState>;
-  oraclePrices: ReturnType<typeof getOraclePricesCodec> &
-    SelfFetchFunctions<OraclePricesArgs, OraclePrices>;
-};
-
-export type FarmsPluginInstructions = {
-  initializeGlobalConfig: (
-    input: InitializeGlobalConfigInput,
-  ) => ReturnType<typeof getInitializeGlobalConfigInstruction> &
-    SelfPlanAndSendFunctions;
-  updateGlobalConfig: (
-    input: UpdateGlobalConfigInput,
-  ) => ReturnType<typeof getUpdateGlobalConfigInstruction> &
-    SelfPlanAndSendFunctions;
-  initializeFarm: (
-    input: InitializeFarmInput,
-  ) => ReturnType<typeof getInitializeFarmInstruction> &
-    SelfPlanAndSendFunctions;
-  initializeFarmDelegated: (
-    input: InitializeFarmDelegatedInput,
-  ) => ReturnType<typeof getInitializeFarmDelegatedInstruction> &
-    SelfPlanAndSendFunctions;
-  initializeReward: (
-    input: InitializeRewardInput,
-  ) => ReturnType<typeof getInitializeRewardInstruction> &
-    SelfPlanAndSendFunctions;
-  addRewards: (
-    input: MakeOptional<AddRewardsInput, "payer">,
-  ) => ReturnType<typeof getAddRewardsInstruction> & SelfPlanAndSendFunctions;
-  updateFarmConfig: (
-    input: UpdateFarmConfigInput,
-  ) => ReturnType<typeof getUpdateFarmConfigInstruction> &
-    SelfPlanAndSendFunctions;
-  initializeUser: (
-    input: MakeOptional<InitializeUserInput, "payer">,
-  ) => ReturnType<typeof getInitializeUserInstruction> &
-    SelfPlanAndSendFunctions;
-  transferOwnership: (
-    input: MakeOptional<TransferOwnershipInput, "payer">,
-  ) => ReturnType<typeof getTransferOwnershipInstruction> &
-    SelfPlanAndSendFunctions;
-  rewardUserOnce: (
-    input: RewardUserOnceInput,
-  ) => ReturnType<typeof getRewardUserOnceInstruction> &
-    SelfPlanAndSendFunctions;
-  refreshFarm: (
-    input: RefreshFarmInput,
-  ) => ReturnType<typeof getRefreshFarmInstruction> & SelfPlanAndSendFunctions;
-  stake: (
-    input: StakeInput,
-  ) => ReturnType<typeof getStakeInstruction> & SelfPlanAndSendFunctions;
-  setStakeDelegated: (
-    input: SetStakeDelegatedInput,
-  ) => ReturnType<typeof getSetStakeDelegatedInstruction> &
-    SelfPlanAndSendFunctions;
-  harvestReward: (
-    input: MakeOptional<HarvestRewardInput, "payer">,
-  ) => ReturnType<typeof getHarvestRewardInstruction> &
-    SelfPlanAndSendFunctions;
-  unstake: (
-    input: UnstakeInput,
-  ) => ReturnType<typeof getUnstakeInstruction> & SelfPlanAndSendFunctions;
-  refreshUserState: (
-    input: RefreshUserStateInput,
-  ) => ReturnType<typeof getRefreshUserStateInstruction> &
-    SelfPlanAndSendFunctions;
-  withdrawUnstakedDeposits: (
-    input: WithdrawUnstakedDepositsInput,
-  ) => ReturnType<typeof getWithdrawUnstakedDepositsInstruction> &
-    SelfPlanAndSendFunctions;
-  withdrawTreasury: (
-    input: WithdrawTreasuryInput,
-  ) => ReturnType<typeof getWithdrawTreasuryInstruction> &
-    SelfPlanAndSendFunctions;
-  depositToFarmVault: (
-    input: DepositToFarmVaultInput,
-  ) => ReturnType<typeof getDepositToFarmVaultInstruction> &
-    SelfPlanAndSendFunctions;
-  withdrawFromFarmVault: (
-    input: WithdrawFromFarmVaultInput,
-  ) => ReturnType<typeof getWithdrawFromFarmVaultInstruction> &
-    SelfPlanAndSendFunctions;
-  withdrawSlashedAmount: (
-    input: WithdrawSlashedAmountInput,
-  ) => ReturnType<typeof getWithdrawSlashedAmountInstruction> &
-    SelfPlanAndSendFunctions;
-  updateFarmAdmin: (
-    input: UpdateFarmAdminInput,
-  ) => ReturnType<typeof getUpdateFarmAdminInstruction> &
-    SelfPlanAndSendFunctions;
-  updateGlobalConfigAdmin: (
-    input: UpdateGlobalConfigAdminInput,
-  ) => ReturnType<typeof getUpdateGlobalConfigAdminInstruction> &
-    SelfPlanAndSendFunctions;
-  withdrawReward: (
-    input: WithdrawRewardInput,
-  ) => ReturnType<typeof getWithdrawRewardInstruction> &
-    SelfPlanAndSendFunctions;
-  updateSecondDelegatedAuthority: (
-    input: UpdateSecondDelegatedAuthorityInput,
-  ) => ReturnType<typeof getUpdateSecondDelegatedAuthorityInstruction> &
-    SelfPlanAndSendFunctions;
-  closeEmptyUserState: (
-    input: CloseEmptyUserStateInput,
-  ) => ReturnType<typeof getCloseEmptyUserStateInstruction> &
-    SelfPlanAndSendFunctions;
-  idlMissingTypes: (
-    input: IdlMissingTypesInput,
-  ) => ReturnType<typeof getIdlMissingTypesInstruction> &
-    SelfPlanAndSendFunctions;
-};
-
-export type FarmsPluginRequirements = ClientWithRpc<
-  GetAccountInfoApi & GetMultipleAccountsApi
-> &
-  ClientWithPayer &
-  ClientWithTransactionPlanning &
-  ClientWithTransactionSending;
-
-export function farmsProgram() {
-  return <T extends FarmsPluginRequirements>(client: T) => {
-    return {
-      ...client,
-      farms: <FarmsPlugin>{
-        accounts: {
-          farmState: addSelfFetchFunctions(client, getFarmStateCodec()),
-          globalConfig: addSelfFetchFunctions(client, getGlobalConfigCodec()),
-          userState: addSelfFetchFunctions(client, getUserStateCodec()),
-          oraclePrices: addSelfFetchFunctions(client, getOraclePricesCodec()),
-        },
-        instructions: {
-          initializeGlobalConfig: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getInitializeGlobalConfigInstruction(input),
-            ),
-          updateGlobalConfig: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getUpdateGlobalConfigInstruction(input),
-            ),
-          initializeFarm: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getInitializeFarmInstruction(input),
-            ),
-          initializeFarmDelegated: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getInitializeFarmDelegatedInstruction(input),
-            ),
-          initializeReward: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getInitializeRewardInstruction(input),
-            ),
-          addRewards: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getAddRewardsInstruction({
-                ...input,
-                payer: input.payer ?? client.payer,
-              }),
-            ),
-          updateFarmConfig: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getUpdateFarmConfigInstruction(input),
-            ),
-          initializeUser: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getInitializeUserInstruction({
-                ...input,
-                payer: input.payer ?? client.payer,
-              }),
-            ),
-          transferOwnership: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getTransferOwnershipInstruction({
-                ...input,
-                payer: input.payer ?? client.payer,
-              }),
-            ),
-          rewardUserOnce: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getRewardUserOnceInstruction(input),
-            ),
-          refreshFarm: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getRefreshFarmInstruction(input),
-            ),
-          stake: (input) =>
-            addSelfPlanAndSendFunctions(client, getStakeInstruction(input)),
-          setStakeDelegated: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getSetStakeDelegatedInstruction(input),
-            ),
-          harvestReward: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getHarvestRewardInstruction({
-                ...input,
-                payer: input.payer ?? client.payer,
-              }),
-            ),
-          unstake: (input) =>
-            addSelfPlanAndSendFunctions(client, getUnstakeInstruction(input)),
-          refreshUserState: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getRefreshUserStateInstruction(input),
-            ),
-          withdrawUnstakedDeposits: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getWithdrawUnstakedDepositsInstruction(input),
-            ),
-          withdrawTreasury: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getWithdrawTreasuryInstruction(input),
-            ),
-          depositToFarmVault: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getDepositToFarmVaultInstruction(input),
-            ),
-          withdrawFromFarmVault: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getWithdrawFromFarmVaultInstruction(input),
-            ),
-          withdrawSlashedAmount: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getWithdrawSlashedAmountInstruction(input),
-            ),
-          updateFarmAdmin: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getUpdateFarmAdminInstruction(input),
-            ),
-          updateGlobalConfigAdmin: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getUpdateGlobalConfigAdminInstruction(input),
-            ),
-          withdrawReward: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getWithdrawRewardInstruction(input),
-            ),
-          updateSecondDelegatedAuthority: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getUpdateSecondDelegatedAuthorityInstruction(input),
-            ),
-          closeEmptyUserState: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getCloseEmptyUserStateInstruction(input),
-            ),
-          idlMissingTypes: (input) =>
-            addSelfPlanAndSendFunctions(
-              client,
-              getIdlMissingTypesInstruction(input),
-            ),
-        },
-      },
-    };
-  };
-}
-
-type MakeOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;

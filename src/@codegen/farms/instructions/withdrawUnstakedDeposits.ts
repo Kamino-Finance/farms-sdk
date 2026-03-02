@@ -14,8 +14,6 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -32,11 +30,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const WITHDRAW_UNSTAKED_DEPOSITS_DISCRIMINATOR = new Uint8Array([
   36, 102, 187, 49, 220, 36, 132, 67,
@@ -187,7 +182,7 @@ export function getWithdrawUnstakedDepositsInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Resolve default values.
@@ -199,13 +194,13 @@ export function getWithdrawUnstakedDepositsInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("owner", accounts.owner),
-      getAccountMeta("userState", accounts.userState),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("userAta", accounts.userAta),
-      getAccountMeta("farmVault", accounts.farmVault),
-      getAccountMeta("farmVaultsAuthority", accounts.farmVaultsAuthority),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta(accounts.owner),
+      getAccountMeta(accounts.userState),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.userAta),
+      getAccountMeta(accounts.farmVault),
+      getAccountMeta(accounts.farmVaultsAuthority),
+      getAccountMeta(accounts.tokenProgram),
     ],
     data: getWithdrawUnstakedDepositsInstructionDataEncoder().encode({}),
     programAddress,
@@ -247,13 +242,8 @@ export function parseWithdrawUnstakedDepositsInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedWithdrawUnstakedDepositsInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 7) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 7,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

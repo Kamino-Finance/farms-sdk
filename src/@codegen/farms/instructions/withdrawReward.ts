@@ -16,8 +16,6 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -34,11 +32,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const WITHDRAW_REWARD_DISCRIMINATOR = new Uint8Array([
   191, 187, 176, 137, 9, 25, 187, 244,
@@ -212,7 +207,7 @@ export function getWithdrawRewardInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -227,14 +222,14 @@ export function getWithdrawRewardInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("farmAdmin", accounts.farmAdmin),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("rewardMint", accounts.rewardMint),
-      getAccountMeta("rewardVault", accounts.rewardVault),
-      getAccountMeta("farmVaultsAuthority", accounts.farmVaultsAuthority),
-      getAccountMeta("adminRewardTokenAta", accounts.adminRewardTokenAta),
-      getAccountMeta("scopePrices", accounts.scopePrices),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta(accounts.farmAdmin),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.rewardMint),
+      getAccountMeta(accounts.rewardVault),
+      getAccountMeta(accounts.farmVaultsAuthority),
+      getAccountMeta(accounts.adminRewardTokenAta),
+      getAccountMeta(accounts.scopePrices),
+      getAccountMeta(accounts.tokenProgram),
     ],
     data: getWithdrawRewardInstructionDataEncoder().encode(
       args as WithdrawRewardInstructionDataArgs,
@@ -280,13 +275,8 @@ export function parseWithdrawRewardInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedWithdrawRewardInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 8) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 8,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

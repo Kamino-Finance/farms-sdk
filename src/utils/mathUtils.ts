@@ -1,5 +1,5 @@
-import { UserState } from "../@codegen/farms/accounts/UserState";
-import { FarmState } from "../@codegen/farms/accounts/FarmState";
+import { UserState } from "../@codegen/farms/accounts/userState";
+import { FarmState } from "../@codegen/farms/accounts/farmState";
 import Decimal from "decimal.js";
 import { WAD } from "./utils";
 import { RewardInfo, RewardType } from "../@codegen/farms/types";
@@ -120,10 +120,10 @@ export function calculateNewRewardToBeIssued(
   let rpsDecimal = new Decimal(10 ** rewardInfo.rewardsPerSecondDecimals);
   let newRewards = tsDiff.mul(new Decimal(rps)).div(rpsDecimal);
 
-  if (rewardInfo.rewardType == RewardType.Proportional.discriminator) {
+  if (rewardInfo.rewardType == RewardType.Proportional) {
     // In the `Proportional` case `rps` means
     // `reward per second for entire farm`
-  } else if (rewardInfo.rewardType == RewardType.Constant.discriminator) {
+  } else if (rewardInfo.rewardType == RewardType.Constant) {
     // In the `Constant` case `rps` means
     // `reward per second for each lamport staked`
     const totalStaked = new Decimal(farmState.totalStakedAmount.toString());

@@ -16,8 +16,6 @@ import {
   getStructEncoder,
   getU128Decoder,
   getU128Encoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -34,11 +32,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const UNSTAKE_DISCRIMINATOR = new Uint8Array([
   90, 95, 107, 42, 205, 124, 50, 225,
@@ -156,7 +151,7 @@ export function getUnstakeInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -165,10 +160,10 @@ export function getUnstakeInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("owner", accounts.owner),
-      getAccountMeta("userState", accounts.userState),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("scopePrices", accounts.scopePrices),
+      getAccountMeta(accounts.owner),
+      getAccountMeta(accounts.userState),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.scopePrices),
     ],
     data: getUnstakeInstructionDataEncoder().encode(
       args as UnstakeInstructionDataArgs,
@@ -206,13 +201,8 @@ export function parseUnstakeInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedUnstakeInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 4) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 4,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

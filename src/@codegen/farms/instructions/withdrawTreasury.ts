@@ -16,8 +16,6 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -34,11 +32,8 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const WITHDRAW_TREASURY_DISCRIMINATOR = new Uint8Array([
   40, 63, 122, 158, 144, 216, 83, 96,
@@ -199,7 +194,7 @@ export function getWithdrawTreasuryInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -214,16 +209,13 @@ export function getWithdrawTreasuryInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("globalAdmin", accounts.globalAdmin),
-      getAccountMeta("globalConfig", accounts.globalConfig),
-      getAccountMeta("rewardMint", accounts.rewardMint),
-      getAccountMeta("rewardTreasuryVault", accounts.rewardTreasuryVault),
-      getAccountMeta("treasuryVaultAuthority", accounts.treasuryVaultAuthority),
-      getAccountMeta(
-        "withdrawDestinationTokenAccount",
-        accounts.withdrawDestinationTokenAccount,
-      ),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta(accounts.globalAdmin),
+      getAccountMeta(accounts.globalConfig),
+      getAccountMeta(accounts.rewardMint),
+      getAccountMeta(accounts.rewardTreasuryVault),
+      getAccountMeta(accounts.treasuryVaultAuthority),
+      getAccountMeta(accounts.withdrawDestinationTokenAccount),
+      getAccountMeta(accounts.tokenProgram),
     ],
     data: getWithdrawTreasuryInstructionDataEncoder().encode(
       args as WithdrawTreasuryInstructionDataArgs,
@@ -267,13 +259,8 @@ export function parseWithdrawTreasuryInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedWithdrawTreasuryInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 7) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 7,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

@@ -16,8 +16,6 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
-  SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-  SolanaError,
   transformEncoder,
   type AccountMeta,
   type AccountSignerMeta,
@@ -34,11 +32,8 @@ import {
   type TransactionSigner,
   type WritableAccount,
 } from "@solana/kit";
-import {
-  getAccountMetaFactory,
-  type ResolvedInstructionAccount,
-} from "@solana/program-client-core";
 import { FARMS_PROGRAM_ADDRESS } from "../programs";
+import { getAccountMetaFactory, type ResolvedAccount } from "../shared";
 
 export const DEPOSIT_TO_FARM_VAULT_DISCRIMINATOR = new Uint8Array([
   131, 166, 64, 94, 108, 213, 114, 183,
@@ -172,7 +167,7 @@ export function getDepositToFarmVaultInstruction<
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
-    ResolvedInstructionAccount
+    ResolvedAccount
   >;
 
   // Original args.
@@ -187,11 +182,11 @@ export function getDepositToFarmVaultInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("depositor", accounts.depositor),
-      getAccountMeta("farmState", accounts.farmState),
-      getAccountMeta("farmVault", accounts.farmVault),
-      getAccountMeta("depositorAta", accounts.depositorAta),
-      getAccountMeta("tokenProgram", accounts.tokenProgram),
+      getAccountMeta(accounts.depositor),
+      getAccountMeta(accounts.farmState),
+      getAccountMeta(accounts.farmVault),
+      getAccountMeta(accounts.depositorAta),
+      getAccountMeta(accounts.tokenProgram),
     ],
     data: getDepositToFarmVaultInstructionDataEncoder().encode(
       args as DepositToFarmVaultInstructionDataArgs,
@@ -231,13 +226,8 @@ export function parseDepositToFarmVaultInstruction<
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedDepositToFarmVaultInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 5) {
-    throw new SolanaError(
-      SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
-      {
-        actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 5,
-      },
-    );
+    // TODO: Coded error.
+    throw new Error("Not enough accounts");
   }
   let accountIndex = 0;
   const getNextAccount = () => {

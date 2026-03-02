@@ -4,3 +4,6 @@ export * from "./Farms";
 export * from "./consts";
 export * from "./@codegen/farms/types";
 export * from "./@codegen/farms/accounts";
+export * from "./@codegen/farms/programs";
+export * from "./@codegen/farms/instructions";
+export * from "./@codegen/farms/errors";
