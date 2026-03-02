@@ -281,7 +281,6 @@ export function updateFarmConfig(
   value: number | Address | number[] | RewardCurvePoint[] | bigint,
 ): IInstruction {
   let data: Uint8Array = new Uint8Array();
-  let buffer: Buffer;
   switch (mode) {
     case FarmConfigOption.LockingStartTimestamp:
     case FarmConfigOption.LockingDuration:
@@ -289,25 +288,18 @@ export function updateFarmConfig(
     case FarmConfigOption.LockingEarlyWithdrawalPenaltyBps:
     case FarmConfigOption.LockingMode:
     case FarmConfigOption.ScopeOracleMaxAge:
-      buffer = Buffer.alloc(8);
-      buffer.writeBigUint64LE(BigInt(value as number), 0);
-      data = Uint8Array.from(buffer);
+      data = writeBigUint64LE(BigInt(value as number));
       break;
     case FarmConfigOption.ScopeOraclePriceId: // bigint arg
-      buffer = Buffer.alloc(8);
-      buffer.writeBigUint64LE(value as bigint, 0);
-      data = Uint8Array.from(buffer);
+      data = writeBigUint64LE(value as bigint);
       break;
     case FarmConfigOption.DepositWarmupPeriod:
     case FarmConfigOption.WithdrawCooldownPeriod:
-      buffer = Buffer.alloc(4);
-      buffer.writeInt32LE(value as number, 0);
-      data = Uint8Array.from(buffer);
+      data = writeInt32LE(value as number);
       break;
     case FarmConfigOption.UpdateIsHarvestingPermissionless:
-      buffer = Buffer.alloc(1);
-      buffer.writeUInt8(value as number, 0);
-      data = Uint8Array.from(buffer);
+    case FarmConfigOption.UpdateIsRewardUserOnceEnabled:
+      data = writeUint8(value as number);
       break;
     case FarmConfigOption.UpdateStrategyId:
     case FarmConfigOption.UpdatePendingFarmAdmin:
@@ -317,17 +309,13 @@ export function updateFarmConfig(
     case FarmConfigOption.UpdateDelegatedRpsAdmin:
     case FarmConfigOption.UpdateVaultId:
     case FarmConfigOption.UpdateDelegatedAuthority:
-      data = Buffer.from(addressEncoder.encode(value as Address));
+      data = new Uint8Array(addressEncoder.encode(value as Address));
       break;
-    case FarmConfigOption.UpdateRewardScheduleCurvePoints:
-      let points = value as RewardCurvePoint[];
+    case FarmConfigOption.UpdateRewardScheduleCurvePoints: {
+      const points = value as RewardCurvePoint[];
       data = serializeRewardCurvePoint(rewardIndex, points);
       break;
-    case FarmConfigOption.UpdateIsRewardUserOnceEnabled:
-      buffer = Buffer.alloc(1);
-      buffer.writeUInt8(value as number, 0);
-      data = Uint8Array.from(buffer);
-      break;
+    }
     default:
       data = serializeConfigValue(BigInt(rewardIndex), BigInt(value as number));
       break;
@@ -550,27 +538,46 @@ export function depositToFarmVault(
   });
 }
 
+function writeBigUint64LE(value: bigint): Uint8Array {
+  const data = new Uint8Array(8);
+  const view = new DataView(data.buffer);
+  view.setBigUint64(0, value, true);
+  return data;
+}
+
+function writeInt32LE(value: number): Uint8Array {
+  const data = new Uint8Array(4);
+  const view = new DataView(data.buffer);
+  view.setInt32(0, value, true);
+  return data;
+}
+
+function writeUint8(value: number): Uint8Array {
+  return new Uint8Array([value]);
+}
+
 export function serializeConfigValue(
   reward_index: bigint,
   value: bigint,
 ): Uint8Array {
-  let buffer: Buffer;
-  buffer = Buffer.alloc(16);
-  buffer.writeBigUint64LE(reward_index, 0);
-  buffer.writeBigUInt64LE(value, 8);
-  return Uint8Array.from(buffer);
+  const data = new Uint8Array(16);
+  const view = new DataView(data.buffer);
+  view.setBigUint64(0, reward_index, true);
+  view.setBigUint64(8, value, true);
+  return data;
 }
+
 export function serializeRewardCurvePoint(
   reward_index: number,
   points: RewardCurvePoint[],
 ): Uint8Array {
-  let buffer: Buffer;
-  buffer = Buffer.alloc(8 + 4 + 16 * points.length);
-  buffer.writeBigUint64LE(BigInt(reward_index), 0);
-  buffer.writeUInt32LE(points.length, 8);
+  const data = new Uint8Array(8 + 4 + 16 * points.length);
+  const view = new DataView(data.buffer);
+  view.setBigUint64(0, BigInt(reward_index), true);
+  view.setUint32(8, points.length, true);
   for (let i = 0; i < points.length; i++) {
-    buffer.writeBigUint64LE(BigInt(points[i].startTs), 12 + 16 * i);
-    buffer.writeBigUint64LE(BigInt(points[i].rps), 20 + 16 * i);
+    view.setBigUint64(12 + 16 * i, BigInt(points[i].startTs), true);
+    view.setBigUint64(20 + 16 * i, BigInt(points[i].rps), true);
   }
-  return Uint8Array.from(buffer);
+  return data;
 }

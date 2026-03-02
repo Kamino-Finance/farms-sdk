@@ -120,14 +120,16 @@ export function calculateNewRewardToBeIssued(
   let rpsDecimal = new Decimal(10 ** rewardInfo.rewardsPerSecondDecimals);
   let newRewards = tsDiff.mul(new Decimal(rps)).div(rpsDecimal);
 
-  if (rewardInfo.rewardType == RewardType.Proportional) {
-    // In the `Proportional` case `rps` means
-    // `reward per second for entire farm`
-  } else if (rewardInfo.rewardType == RewardType.Constant) {
-    // In the `Constant` case `rps` means
-    // `reward per second for each lamport staked`
-    const totalStaked = new Decimal(farmState.totalStakedAmount.toString());
-    newRewards = newRewards.mul(totalStaked);
+  switch (rewardInfo.rewardType) {
+    case RewardType.Proportional:
+      // `rps` means `reward per second for entire farm`
+      break;
+    case RewardType.Constant: {
+      // `rps` means `reward per second for each lamport staked`
+      const totalStaked = new Decimal(farmState.totalStakedAmount.toString());
+      newRewards = newRewards.mul(totalStaked);
+      break;
+    }
   }
 
   if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {

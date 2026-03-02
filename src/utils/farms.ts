@@ -305,15 +305,12 @@ export type FarmMetadata = {
   vault: Address | undefined;
 };
 
-function getRewardType(rewardTypeNumber: number): string {
-  switch (rewardTypeNumber) {
-    case RewardType.Proportional:
-      return "Proportional";
-    case RewardType.Constant:
-      return "Constant";
-    default:
-      throw new Error(`Invalid reward type: ${rewardTypeNumber}`);
+function getRewardType(rewardType: RewardType): string {
+  const name = RewardType[rewardType];
+  if (name === undefined) {
+    throw new Error(`Invalid reward type: ${rewardType}`);
   }
+  return name;
 }
 
 export function getFarmConfigType(
