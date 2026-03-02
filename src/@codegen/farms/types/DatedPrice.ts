@@ -1,14 +1,14 @@
-import { address, Address } from "@solana/kit" // eslint-disable-line @typescript-eslint/no-unused-vars
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh"
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { address, Address } from "@solana/kit"
+import * as types from "../types"
+import * as borsh from "../utils/borsh"
 import { borshAddress } from "../utils"
-
+/* eslint-enable @typescript-eslint/no-unused-vars */
 export interface DatedPriceFields {
   price: types.PriceFields
-  lastUpdatedSlot: BN
-  unixTimestamp: BN
-  reserved: Array<BN>
+  lastUpdatedSlot: bigint
+  unixTimestamp: bigint
+  reserved: Array<bigint>
   reserved2: Array<number>
   index: number
 }
@@ -24,9 +24,9 @@ export interface DatedPriceJSON {
 
 export class DatedPrice {
   readonly price: types.Price
-  readonly lastUpdatedSlot: BN
-  readonly unixTimestamp: BN
-  readonly reserved: Array<BN>
+  readonly lastUpdatedSlot: bigint
+  readonly unixTimestamp: bigint
+  readonly reserved: Array<bigint>
   readonly reserved2: Array<number>
   readonly index: number
 
@@ -90,9 +90,9 @@ export class DatedPrice {
   static fromJSON(obj: DatedPriceJSON): DatedPrice {
     return new DatedPrice({
       price: types.Price.fromJSON(obj.price),
-      lastUpdatedSlot: new BN(obj.lastUpdatedSlot),
-      unixTimestamp: new BN(obj.unixTimestamp),
-      reserved: obj.reserved.map((item) => new BN(item)),
+      lastUpdatedSlot: BigInt(obj.lastUpdatedSlot),
+      unixTimestamp: BigInt(obj.unixTimestamp),
+      reserved: obj.reserved.map((item) => BigInt(item)),
       reserved2: obj.reserved2,
       index: obj.index,
     })

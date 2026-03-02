@@ -78,7 +78,7 @@ export function getUserStateDefaultLastClaimTs(
   if (firstEmptyRewardIndex === -1) {
     throw new Error("No empty reward slot found in farm state");
   }
-  return userState.lastClaimTs[firstEmptyRewardIndex].toNumber();
+  return Number(userState.lastClaimTs[firstEmptyRewardIndex]);
 }
 
 export function getRewardIndexInFarm(
@@ -123,7 +123,7 @@ export async function getSeasonFarmsData(
     }
 
     const rewardDecimals =
-      farmState.rewardInfos[rewardIndex].token.decimals.toNumber();
+      Number(farmState.rewardInfos[rewardIndex].token.decimals);
     const rewardDecimalFactor = new Decimal(10).pow(rewardDecimals);
 
     const totalFarmVestingCalculation = calculateVestingAtTime(
@@ -232,7 +232,7 @@ export async function getSeasonFarmsData(
         userState,
       );
       if (
-        userState.lastClaimTs[rewardIndex].toNumber() > userDefaultLastClaimTs
+        Number(userState.lastClaimTs[rewardIndex]) > userDefaultLastClaimTs
       ) {
         const userTotalClaimedDecimal = new Decimal(
           userState.rewardsIssuedCumulative[rewardIndex].toString(),
@@ -268,7 +268,7 @@ export async function getSeasonFarmsData(
         .lessThanOrEqualTo(userTotalClaimableAtStatsTs);
 
       const hasClaimedAfterVestingEnd =
-        userState.lastClaimTs[rewardIndex].toNumber() > vestingEndTsSeconds;
+        Number(userState.lastClaimTs[rewardIndex]) > vestingEndTsSeconds;
       const userRewardsIssuedUnclaimed = new Decimal(
         userState.rewardsIssuedUnclaimed[rewardIndex].toString(),
       ).div(rewardDecimalFactor);
@@ -276,7 +276,7 @@ export async function getSeasonFarmsData(
         userTotalClaimableAtStatsTs.equals(userRewardsIssuedUnclaimed) &&
         userTotalClaimableAtStatsTs.equals(userAllocationDecimal) &&
         statsTimestampSeconds > vestingEndTsSeconds &&
-        userState.lastClaimTs[rewardIndex].toNumber() ===
+        Number(userState.lastClaimTs[rewardIndex]) ===
           userDefaultLastClaimTs;
 
       if (isFullyVestedAndAwarded || hasClaimedAfterVestingEnd) {

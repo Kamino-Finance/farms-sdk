@@ -9,17 +9,16 @@ import {
   TransactionSigner,
 } from "@solana/kit"
 /* eslint-enable @typescript-eslint/no-unused-vars */
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
+import * as borsh from "../utils/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
 
-export const DISCRIMINATOR = Buffer.from([88, 186, 25, 227, 38, 137, 81, 23])
+export const DISCRIMINATOR = new Uint8Array([88, 186, 25, 227, 38, 137, 81, 23])
 
 export interface AddRewardsArgs {
-  amount: BN
-  rewardIndex: BN
+  amount: bigint
+  rewardIndex: bigint
 }
 
 export interface AddRewardsAccounts {
@@ -57,7 +56,7 @@ export function addRewards(
     { address: accounts.tokenProgram, role: 0 },
     ...remainingAccounts,
   ]
-  const buffer = Buffer.alloc(1000)
+  const buffer = new Uint8Array(1000)
   const len = layout.encode(
     {
       amount: args.amount,
@@ -65,7 +64,12 @@ export function addRewards(
     },
     buffer
   )
-  const data = Buffer.concat([DISCRIMINATOR, buffer]).slice(0, 8 + len)
+  const data = (() => {
+    const d = new Uint8Array(8 + len)
+    d.set(DISCRIMINATOR)
+    d.set(buffer.subarray(0, len), 8)
+    return d
+  })()
   const ix: Instruction = { accounts: keys, programAddress, data }
   return ix
 }

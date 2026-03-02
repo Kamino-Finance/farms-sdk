@@ -9,19 +9,18 @@ import {
   Rpc,
 } from "@solana/kit"
 /* eslint-enable @typescript-eslint/no-unused-vars */
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
+import * as borsh from "../utils/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
 
 export interface GlobalConfigFields {
   globalAdmin: Address
-  treasuryFeeBps: BN
+  treasuryFeeBps: bigint
   treasuryVaultsAuthority: Address
-  treasuryVaultsAuthorityBump: BN
+  treasuryVaultsAuthorityBump: bigint
   pendingGlobalAdmin: Address
-  padding1: Array<BN>
+  padding1: Array<bigint>
 }
 
 export interface GlobalConfigJSON {
@@ -35,13 +34,13 @@ export interface GlobalConfigJSON {
 
 export class GlobalConfig {
   readonly globalAdmin: Address
-  readonly treasuryFeeBps: BN
+  readonly treasuryFeeBps: bigint
   readonly treasuryVaultsAuthority: Address
-  readonly treasuryVaultsAuthorityBump: BN
+  readonly treasuryVaultsAuthorityBump: bigint
   readonly pendingGlobalAdmin: Address
-  readonly padding1: Array<BN>
+  readonly padding1: Array<bigint>
 
-  static readonly discriminator = Buffer.from([
+  static readonly discriminator = new Uint8Array([
     149, 8, 156, 202, 160, 252, 176, 217,
   ])
 
@@ -79,7 +78,7 @@ export class GlobalConfig {
       )
     }
 
-    return this.decode(Buffer.from(info.data))
+    return this.decode(new Uint8Array(info.data))
   }
 
   static async fetchMultiple(
@@ -99,16 +98,23 @@ export class GlobalConfig {
         )
       }
 
-      return this.decode(Buffer.from(info.data))
+      return this.decode(new Uint8Array(info.data))
     })
   }
 
-  static decode(data: Buffer): GlobalConfig {
-    if (!data.slice(0, 8).equals(GlobalConfig.discriminator)) {
+  static decode(data: Uint8Array): GlobalConfig {
+    if (data.length < GlobalConfig.discriminator.length) {
       throw new Error("invalid account discriminator")
     }
+    for (let i = 0; i < GlobalConfig.discriminator.length; i++) {
+      if (data[i] !== GlobalConfig.discriminator[i]) {
+        throw new Error("invalid account discriminator")
+      }
+    }
 
-    const dec = GlobalConfig.layout.decode(data.slice(8))
+    const dec = GlobalConfig.layout.decode(
+      data.subarray(GlobalConfig.discriminator.length)
+    )
 
     return new GlobalConfig({
       globalAdmin: dec.globalAdmin,
@@ -134,11 +140,11 @@ export class GlobalConfig {
   static fromJSON(obj: GlobalConfigJSON): GlobalConfig {
     return new GlobalConfig({
       globalAdmin: address(obj.globalAdmin),
-      treasuryFeeBps: new BN(obj.treasuryFeeBps),
+      treasuryFeeBps: BigInt(obj.treasuryFeeBps),
       treasuryVaultsAuthority: address(obj.treasuryVaultsAuthority),
-      treasuryVaultsAuthorityBump: new BN(obj.treasuryVaultsAuthorityBump),
+      treasuryVaultsAuthorityBump: BigInt(obj.treasuryVaultsAuthorityBump),
       pendingGlobalAdmin: address(obj.pendingGlobalAdmin),
-      padding1: obj.padding1.map((item) => new BN(item)),
+      padding1: obj.padding1.map((item) => BigInt(item)),
     })
   }
 }

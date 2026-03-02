@@ -1,12 +1,12 @@
-import { address, Address } from "@solana/kit" // eslint-disable-line @typescript-eslint/no-unused-vars
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh"
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { address, Address } from "@solana/kit"
+import * as types from "../types"
+import * as borsh from "../utils/borsh"
 import { borshAddress } from "../utils"
-
+/* eslint-enable @typescript-eslint/no-unused-vars */
 export interface RewardPerTimeUnitPointFields {
-  tsStart: BN
-  rewardPerTimeUnit: BN
+  tsStart: bigint
+  rewardPerTimeUnit: bigint
 }
 
 export interface RewardPerTimeUnitPointJSON {
@@ -15,8 +15,8 @@ export interface RewardPerTimeUnitPointJSON {
 }
 
 export class RewardPerTimeUnitPoint {
-  readonly tsStart: BN
-  readonly rewardPerTimeUnit: BN
+  readonly tsStart: bigint
+  readonly rewardPerTimeUnit: bigint
 
   constructor(fields: RewardPerTimeUnitPointFields) {
     this.tsStart = fields.tsStart
@@ -54,8 +54,8 @@ export class RewardPerTimeUnitPoint {
 
   static fromJSON(obj: RewardPerTimeUnitPointJSON): RewardPerTimeUnitPoint {
     return new RewardPerTimeUnitPoint({
-      tsStart: new BN(obj.tsStart),
-      rewardPerTimeUnit: new BN(obj.rewardPerTimeUnit),
+      tsStart: BigInt(obj.tsStart),
+      rewardPerTimeUnit: BigInt(obj.rewardPerTimeUnit),
     })
   }
 

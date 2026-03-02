@@ -9,14 +9,13 @@ import {
   Rpc,
 } from "@solana/kit"
 /* eslint-enable @typescript-eslint/no-unused-vars */
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
+import * as borsh from "../utils/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
 
 export interface UserStateFields {
-  userId: BN
+  userId: bigint
   farmState: Address
   owner: Address
   /** Indicate if this user state is part of a delegated farm */
@@ -26,45 +25,45 @@ export interface UserStateFields {
    * Rewards tally used for computation of gained rewards
    * (scaled from `Decimal` representation).
    */
-  rewardsTallyScaled: Array<BN>
+  rewardsTallyScaled: Array<bigint>
   /** Number of reward tokens ready for claim */
-  rewardsIssuedUnclaimed: Array<BN>
-  lastClaimTs: Array<BN>
+  rewardsIssuedUnclaimed: Array<bigint>
+  lastClaimTs: Array<bigint>
   /**
    * User stake deposited and usable, generating rewards and fees.
    * (scaled from `Decimal` representation).
    */
-  activeStakeScaled: BN
+  activeStakeScaled: bigint
   /**
    * User stake deposited but not usable and not generating rewards yet.
    * (scaled from `Decimal` representation).
    */
-  pendingDepositStakeScaled: BN
+  pendingDepositStakeScaled: bigint
   /**
    * After this timestamp, pending user stake can be moved to user stake
    * Initialized to now() + delayed user stake period
    */
-  pendingDepositStakeTs: BN
+  pendingDepositStakeTs: bigint
   /**
    * User deposits unstaked, pending for withdrawal, not usable and not generating rewards.
    * (scaled from `Decimal` representation).
    */
-  pendingWithdrawalUnstakeScaled: BN
+  pendingWithdrawalUnstakeScaled: bigint
   /** After this timestamp, user can withdraw their deposit. */
-  pendingWithdrawalUnstakeTs: BN
+  pendingWithdrawalUnstakeTs: bigint
   /** User bump used for account address validation */
-  bump: BN
+  bump: bigint
   /** Delegatee used for initialisation - useful to check against */
   delegatee: Address
-  lastStakeTs: BN
+  lastStakeTs: bigint
   /**
    * Cumulative rewards issued to the user - ONLY used for stats/analytics
    * DO NOT USE IN ANY CALCULATIONS
    * Old userStates will have this field populated only from the point of release
    * not reflecting any historical data before this was released
    */
-  rewardsIssuedCumulative: Array<BN>
-  padding1: Array<BN>
+  rewardsIssuedCumulative: Array<bigint>
+  padding1: Array<bigint>
 }
 
 export interface UserStateJSON {
@@ -120,7 +119,7 @@ export interface UserStateJSON {
 }
 
 export class UserState {
-  readonly userId: BN
+  readonly userId: bigint
   readonly farmState: Address
   readonly owner: Address
   /** Indicate if this user state is part of a delegated farm */
@@ -130,47 +129,47 @@ export class UserState {
    * Rewards tally used for computation of gained rewards
    * (scaled from `Decimal` representation).
    */
-  readonly rewardsTallyScaled: Array<BN>
+  readonly rewardsTallyScaled: Array<bigint>
   /** Number of reward tokens ready for claim */
-  readonly rewardsIssuedUnclaimed: Array<BN>
-  readonly lastClaimTs: Array<BN>
+  readonly rewardsIssuedUnclaimed: Array<bigint>
+  readonly lastClaimTs: Array<bigint>
   /**
    * User stake deposited and usable, generating rewards and fees.
    * (scaled from `Decimal` representation).
    */
-  readonly activeStakeScaled: BN
+  readonly activeStakeScaled: bigint
   /**
    * User stake deposited but not usable and not generating rewards yet.
    * (scaled from `Decimal` representation).
    */
-  readonly pendingDepositStakeScaled: BN
+  readonly pendingDepositStakeScaled: bigint
   /**
    * After this timestamp, pending user stake can be moved to user stake
    * Initialized to now() + delayed user stake period
    */
-  readonly pendingDepositStakeTs: BN
+  readonly pendingDepositStakeTs: bigint
   /**
    * User deposits unstaked, pending for withdrawal, not usable and not generating rewards.
    * (scaled from `Decimal` representation).
    */
-  readonly pendingWithdrawalUnstakeScaled: BN
+  readonly pendingWithdrawalUnstakeScaled: bigint
   /** After this timestamp, user can withdraw their deposit. */
-  readonly pendingWithdrawalUnstakeTs: BN
+  readonly pendingWithdrawalUnstakeTs: bigint
   /** User bump used for account address validation */
-  readonly bump: BN
+  readonly bump: bigint
   /** Delegatee used for initialisation - useful to check against */
   readonly delegatee: Address
-  readonly lastStakeTs: BN
+  readonly lastStakeTs: bigint
   /**
    * Cumulative rewards issued to the user - ONLY used for stats/analytics
    * DO NOT USE IN ANY CALCULATIONS
    * Old userStates will have this field populated only from the point of release
    * not reflecting any historical data before this was released
    */
-  readonly rewardsIssuedCumulative: Array<BN>
-  readonly padding1: Array<BN>
+  readonly rewardsIssuedCumulative: Array<bigint>
+  readonly padding1: Array<bigint>
 
-  static readonly discriminator = Buffer.from([
+  static readonly discriminator = new Uint8Array([
     72, 177, 85, 249, 76, 167, 186, 126,
   ])
 
@@ -232,7 +231,7 @@ export class UserState {
       )
     }
 
-    return this.decode(Buffer.from(info.data))
+    return this.decode(new Uint8Array(info.data))
   }
 
   static async fetchMultiple(
@@ -252,16 +251,23 @@ export class UserState {
         )
       }
 
-      return this.decode(Buffer.from(info.data))
+      return this.decode(new Uint8Array(info.data))
     })
   }
 
-  static decode(data: Buffer): UserState {
-    if (!data.slice(0, 8).equals(UserState.discriminator)) {
+  static decode(data: Uint8Array): UserState {
+    if (data.length < UserState.discriminator.length) {
       throw new Error("invalid account discriminator")
     }
+    for (let i = 0; i < UserState.discriminator.length; i++) {
+      if (data[i] !== UserState.discriminator[i]) {
+        throw new Error("invalid account discriminator")
+      }
+    }
 
-    const dec = UserState.layout.decode(data.slice(8))
+    const dec = UserState.layout.decode(
+      data.subarray(UserState.discriminator.length)
+    )
 
     return new UserState({
       userId: dec.userId,
@@ -317,30 +323,30 @@ export class UserState {
 
   static fromJSON(obj: UserStateJSON): UserState {
     return new UserState({
-      userId: new BN(obj.userId),
+      userId: BigInt(obj.userId),
       farmState: address(obj.farmState),
       owner: address(obj.owner),
       isFarmDelegated: obj.isFarmDelegated,
       padding0: obj.padding0,
-      rewardsTallyScaled: obj.rewardsTallyScaled.map((item) => new BN(item)),
-      rewardsIssuedUnclaimed: obj.rewardsIssuedUnclaimed.map(
-        (item) => new BN(item)
+      rewardsTallyScaled: obj.rewardsTallyScaled.map((item) => BigInt(item)),
+      rewardsIssuedUnclaimed: obj.rewardsIssuedUnclaimed.map((item) =>
+        BigInt(item)
       ),
-      lastClaimTs: obj.lastClaimTs.map((item) => new BN(item)),
-      activeStakeScaled: new BN(obj.activeStakeScaled),
-      pendingDepositStakeScaled: new BN(obj.pendingDepositStakeScaled),
-      pendingDepositStakeTs: new BN(obj.pendingDepositStakeTs),
-      pendingWithdrawalUnstakeScaled: new BN(
+      lastClaimTs: obj.lastClaimTs.map((item) => BigInt(item)),
+      activeStakeScaled: BigInt(obj.activeStakeScaled),
+      pendingDepositStakeScaled: BigInt(obj.pendingDepositStakeScaled),
+      pendingDepositStakeTs: BigInt(obj.pendingDepositStakeTs),
+      pendingWithdrawalUnstakeScaled: BigInt(
         obj.pendingWithdrawalUnstakeScaled
       ),
-      pendingWithdrawalUnstakeTs: new BN(obj.pendingWithdrawalUnstakeTs),
-      bump: new BN(obj.bump),
+      pendingWithdrawalUnstakeTs: BigInt(obj.pendingWithdrawalUnstakeTs),
+      bump: BigInt(obj.bump),
       delegatee: address(obj.delegatee),
-      lastStakeTs: new BN(obj.lastStakeTs),
-      rewardsIssuedCumulative: obj.rewardsIssuedCumulative.map(
-        (item) => new BN(item)
+      lastStakeTs: BigInt(obj.lastStakeTs),
+      rewardsIssuedCumulative: obj.rewardsIssuedCumulative.map((item) =>
+        BigInt(item)
       ),
-      padding1: obj.padding1.map((item) => new BN(item)),
+      padding1: obj.padding1.map((item) => BigInt(item)),
     })
   }
 }

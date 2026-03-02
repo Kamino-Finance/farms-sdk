@@ -9,8 +9,7 @@ import {
   Rpc,
 } from "@solana/kit"
 /* eslint-enable @typescript-eslint/no-unused-vars */
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
+import * as borsh from "../utils/borsh" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { borshAddress } from "../utils" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
 import { PROGRAM_ID } from "../programId"
@@ -20,17 +19,17 @@ export interface FarmStateFields {
   globalConfig: Address
   token: types.TokenInfoFields
   rewardInfos: Array<types.RewardInfoFields>
-  numRewardTokens: BN
+  numRewardTokens: bigint
   /** Data used to calculate the rewards of the user */
-  numUsers: BN
+  numUsers: bigint
   /**
    * The number of token in the `farm_vault` staked (getting rewards and fees)
    * Set such as `farm_vault.amount = total_staked_amount + total_pending_amount`
    */
-  totalStakedAmount: BN
+  totalStakedAmount: bigint
   farmVault: Address
   farmVaultsAuthority: Address
-  farmVaultsAuthorityBump: BN
+  farmVaultsAuthorityBump: bigint
   /**
    * Only used for delegate farms
    * Set to `default()` otherwise
@@ -68,33 +67,33 @@ export interface FarmStateFields {
   /** Delay between a user unstake and the ability to withdraw his deposit. */
   withdrawalCooldownPeriod: number
   /** Total active stake of tokens in the farm (scaled from `Decimal` representation). */
-  totalActiveStakeScaled: BN
+  totalActiveStakeScaled: bigint
   /**
    * Total pending stake of tokens in the farm (scaled from `Decimal` representation).
    * (can be used by `withdraw_authority` but don't get rewards or fees)
    */
-  totalPendingStakeScaled: BN
+  totalPendingStakeScaled: bigint
   /** Total pending amount of tokens in the farm */
-  totalPendingAmount: BN
+  totalPendingAmount: bigint
   /** Slashed amounts from early withdrawal */
-  slashedAmountCurrent: BN
-  slashedAmountCumulative: BN
+  slashedAmountCurrent: bigint
+  slashedAmountCumulative: bigint
   slashedAmountSpillAddress: Address
   /** Locking stake */
-  lockingMode: BN
-  lockingStartTimestamp: BN
-  lockingDuration: BN
-  lockingEarlyWithdrawalPenaltyBps: BN
-  depositCapAmount: BN
+  lockingMode: bigint
+  lockingStartTimestamp: bigint
+  lockingDuration: bigint
+  lockingEarlyWithdrawalPenaltyBps: bigint
+  depositCapAmount: bigint
   scopePrices: Address
-  scopeOraclePriceId: BN
-  scopeOracleMaxAge: BN
+  scopeOraclePriceId: bigint
+  scopeOracleMaxAge: bigint
   pendingFarmAdmin: Address
   strategyId: Address
   delegatedRpsAdmin: Address
   vaultId: Address
   secondDelegatedAuthority: Address
-  padding: Array<BN>
+  padding: Array<bigint>
 }
 
 export interface FarmStateJSON {
@@ -184,17 +183,17 @@ export class FarmState {
   readonly globalConfig: Address
   readonly token: types.TokenInfo
   readonly rewardInfos: Array<types.RewardInfo>
-  readonly numRewardTokens: BN
+  readonly numRewardTokens: bigint
   /** Data used to calculate the rewards of the user */
-  readonly numUsers: BN
+  readonly numUsers: bigint
   /**
    * The number of token in the `farm_vault` staked (getting rewards and fees)
    * Set such as `farm_vault.amount = total_staked_amount + total_pending_amount`
    */
-  readonly totalStakedAmount: BN
+  readonly totalStakedAmount: bigint
   readonly farmVault: Address
   readonly farmVaultsAuthority: Address
-  readonly farmVaultsAuthorityBump: BN
+  readonly farmVaultsAuthorityBump: bigint
   /**
    * Only used for delegate farms
    * Set to `default()` otherwise
@@ -232,35 +231,35 @@ export class FarmState {
   /** Delay between a user unstake and the ability to withdraw his deposit. */
   readonly withdrawalCooldownPeriod: number
   /** Total active stake of tokens in the farm (scaled from `Decimal` representation). */
-  readonly totalActiveStakeScaled: BN
+  readonly totalActiveStakeScaled: bigint
   /**
    * Total pending stake of tokens in the farm (scaled from `Decimal` representation).
    * (can be used by `withdraw_authority` but don't get rewards or fees)
    */
-  readonly totalPendingStakeScaled: BN
+  readonly totalPendingStakeScaled: bigint
   /** Total pending amount of tokens in the farm */
-  readonly totalPendingAmount: BN
+  readonly totalPendingAmount: bigint
   /** Slashed amounts from early withdrawal */
-  readonly slashedAmountCurrent: BN
-  readonly slashedAmountCumulative: BN
+  readonly slashedAmountCurrent: bigint
+  readonly slashedAmountCumulative: bigint
   readonly slashedAmountSpillAddress: Address
   /** Locking stake */
-  readonly lockingMode: BN
-  readonly lockingStartTimestamp: BN
-  readonly lockingDuration: BN
-  readonly lockingEarlyWithdrawalPenaltyBps: BN
-  readonly depositCapAmount: BN
+  readonly lockingMode: bigint
+  readonly lockingStartTimestamp: bigint
+  readonly lockingDuration: bigint
+  readonly lockingEarlyWithdrawalPenaltyBps: bigint
+  readonly depositCapAmount: bigint
   readonly scopePrices: Address
-  readonly scopeOraclePriceId: BN
-  readonly scopeOracleMaxAge: BN
+  readonly scopeOraclePriceId: bigint
+  readonly scopeOracleMaxAge: bigint
   readonly pendingFarmAdmin: Address
   readonly strategyId: Address
   readonly delegatedRpsAdmin: Address
   readonly vaultId: Address
   readonly secondDelegatedAuthority: Address
-  readonly padding: Array<BN>
+  readonly padding: Array<bigint>
 
-  static readonly discriminator = Buffer.from([
+  static readonly discriminator = new Uint8Array([
     198, 102, 216, 74, 63, 66, 163, 190,
   ])
 
@@ -369,7 +368,7 @@ export class FarmState {
       )
     }
 
-    return this.decode(Buffer.from(info.data))
+    return this.decode(new Uint8Array(info.data))
   }
 
   static async fetchMultiple(
@@ -389,16 +388,23 @@ export class FarmState {
         )
       }
 
-      return this.decode(Buffer.from(info.data))
+      return this.decode(new Uint8Array(info.data))
     })
   }
 
-  static decode(data: Buffer): FarmState {
-    if (!data.slice(0, 8).equals(FarmState.discriminator)) {
+  static decode(data: Uint8Array): FarmState {
+    if (data.length < FarmState.discriminator.length) {
       throw new Error("invalid account discriminator")
     }
+    for (let i = 0; i < FarmState.discriminator.length; i++) {
+      if (data[i] !== FarmState.discriminator[i]) {
+        throw new Error("invalid account discriminator")
+      }
+    }
 
-    const dec = FarmState.layout.decode(data.slice(8))
+    const dec = FarmState.layout.decode(
+      data.subarray(FarmState.discriminator.length)
+    )
 
     return new FarmState({
       farmAdmin: dec.farmAdmin,
@@ -502,12 +508,12 @@ export class FarmState {
       rewardInfos: obj.rewardInfos.map((item) =>
         types.RewardInfo.fromJSON(item)
       ),
-      numRewardTokens: new BN(obj.numRewardTokens),
-      numUsers: new BN(obj.numUsers),
-      totalStakedAmount: new BN(obj.totalStakedAmount),
+      numRewardTokens: BigInt(obj.numRewardTokens),
+      numUsers: BigInt(obj.numUsers),
+      totalStakedAmount: BigInt(obj.totalStakedAmount),
       farmVault: address(obj.farmVault),
       farmVaultsAuthority: address(obj.farmVaultsAuthority),
-      farmVaultsAuthorityBump: new BN(obj.farmVaultsAuthorityBump),
+      farmVaultsAuthorityBump: BigInt(obj.farmVaultsAuthorityBump),
       delegateAuthority: address(obj.delegateAuthority),
       timeUnit: obj.timeUnit,
       isFarmFrozen: obj.isFarmFrozen,
@@ -518,28 +524,28 @@ export class FarmState {
       withdrawAuthority: address(obj.withdrawAuthority),
       depositWarmupPeriod: obj.depositWarmupPeriod,
       withdrawalCooldownPeriod: obj.withdrawalCooldownPeriod,
-      totalActiveStakeScaled: new BN(obj.totalActiveStakeScaled),
-      totalPendingStakeScaled: new BN(obj.totalPendingStakeScaled),
-      totalPendingAmount: new BN(obj.totalPendingAmount),
-      slashedAmountCurrent: new BN(obj.slashedAmountCurrent),
-      slashedAmountCumulative: new BN(obj.slashedAmountCumulative),
+      totalActiveStakeScaled: BigInt(obj.totalActiveStakeScaled),
+      totalPendingStakeScaled: BigInt(obj.totalPendingStakeScaled),
+      totalPendingAmount: BigInt(obj.totalPendingAmount),
+      slashedAmountCurrent: BigInt(obj.slashedAmountCurrent),
+      slashedAmountCumulative: BigInt(obj.slashedAmountCumulative),
       slashedAmountSpillAddress: address(obj.slashedAmountSpillAddress),
-      lockingMode: new BN(obj.lockingMode),
-      lockingStartTimestamp: new BN(obj.lockingStartTimestamp),
-      lockingDuration: new BN(obj.lockingDuration),
-      lockingEarlyWithdrawalPenaltyBps: new BN(
+      lockingMode: BigInt(obj.lockingMode),
+      lockingStartTimestamp: BigInt(obj.lockingStartTimestamp),
+      lockingDuration: BigInt(obj.lockingDuration),
+      lockingEarlyWithdrawalPenaltyBps: BigInt(
         obj.lockingEarlyWithdrawalPenaltyBps
       ),
-      depositCapAmount: new BN(obj.depositCapAmount),
+      depositCapAmount: BigInt(obj.depositCapAmount),
       scopePrices: address(obj.scopePrices),
-      scopeOraclePriceId: new BN(obj.scopeOraclePriceId),
-      scopeOracleMaxAge: new BN(obj.scopeOracleMaxAge),
+      scopeOraclePriceId: BigInt(obj.scopeOraclePriceId),
+      scopeOracleMaxAge: BigInt(obj.scopeOracleMaxAge),
       pendingFarmAdmin: address(obj.pendingFarmAdmin),
       strategyId: address(obj.strategyId),
       delegatedRpsAdmin: address(obj.delegatedRpsAdmin),
       vaultId: address(obj.vaultId),
       secondDelegatedAuthority: address(obj.secondDelegatedAuthority),
-      padding: obj.padding.map((item) => new BN(item)),
+      padding: obj.padding.map((item) => BigInt(item)),
     })
   }
 }

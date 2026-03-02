@@ -15,7 +15,6 @@ import {
   TransactionSigner,
   UnixTimestamp,
 } from "@solana/kit";
-import BN from "bn.js";
 import Decimal from "decimal.js";
 import { FarmState, GlobalConfig, UserState } from "./@codegen/farms/accounts";
 import { PROGRAM_ID } from "./@codegen/farms/programId";
@@ -70,7 +69,7 @@ import {
   getAssociatedTokenAddress,
 } from "./utils/token";
 
-import { ZERO_BN } from "@kamino-finance/kliquidity-sdk";
+const ZERO_BN = 0n;
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { Connection } from "@solana/web3.js";
 import { backOff, IBackOffOptions } from "exponential-backoff";
@@ -302,7 +301,7 @@ export class Farms {
           encoding: "base64+zstd",
         })
         .send()
-    ).map((x) => {
+    ).map((x: any) => {
       const compressedData = Buffer.from(x.account.data[0], "base64");
       const decompressedData = decompress(compressedData);
 
@@ -432,7 +431,7 @@ export class Farms {
 
     return lamportsToCollDecimal(
       new Decimal(scaleDownWads(farmState.totalActiveStakeScaled)),
-      farmState.token.decimals.toNumber(),
+      Number(farmState.token.decimals),
     );
   }
 
@@ -451,7 +450,7 @@ export class Farms {
       totalStaked = totalStaked.add(
         lamportsToCollDecimal(
           new Decimal(farms[index].farmState.totalStakedAmount.toString()),
-          farms[index].farmState.token.decimals.toNumber(),
+          Number(farms[index].farmState.token.decimals),
         ),
       );
     }
@@ -481,9 +480,9 @@ export class Farms {
       throw new Error("Error fetching farm state");
     }
 
-    let lockingMode = farmState?.lockingMode.toNumber();
-    let lockingDuration = farmState?.lockingDuration.toNumber();
-    let penalty = farmState.lockingEarlyWithdrawalPenaltyBps.toNumber();
+    let lockingMode = Number(farmState.lockingMode);
+    let lockingDuration = Number(farmState.lockingDuration);
+    let penalty = Number(farmState.lockingEarlyWithdrawalPenaltyBps);
 
     if (penalty !== 0 && penalty !== 10000) {
       throw "Early withdrawal penalty is not supported yet";
@@ -504,7 +503,7 @@ export class Farms {
 
     if (lockingMode == LockingMode.WithExpiry.discriminator) {
       // Locking starts globally for the entire farm
-      lockingStart = farmState?.lockingStartTimestamp.toNumber();
+      lockingStart = Number(farmState.lockingStartTimestamp);
     }
     if (lockingMode == LockingMode.Continuous.discriminator) {
       // Locking starts for each user individually at each stake
@@ -515,7 +514,7 @@ export class Farms {
         if (!userState) {
           throw new Error("Error fetching user state");
         }
-        lockingStart = userState.lastStakeTs.toNumber();
+        lockingStart = Number(userState.lastStakeTs);
       }
     }
 
@@ -525,7 +524,7 @@ export class Farms {
     if (timestampNow >= timestampMaturity) {
       // Time has passed, no remaining
       return {
-        farmLockupOriginalDuration: farmState.lockingDuration.toNumber(),
+        farmLockupOriginalDuration: Number(farmState.lockingDuration),
         farmLockupExpiry: timestampMaturity,
         lockupRemainingDuration: 0,
       };
@@ -534,7 +533,7 @@ export class Farms {
     if (timestampNow < timestampBeginning) {
       // Time has not started, no remaining
       return {
-        farmLockupOriginalDuration: farmState.lockingDuration.toNumber(),
+        farmLockupOriginalDuration: Number(farmState.lockingDuration),
         farmLockupExpiry: timestampMaturity,
         lockupRemainingDuration: 0,
       };
@@ -544,7 +543,7 @@ export class Farms {
     const remainingLockedDurationSeconds = Math.max(timeRemaining, 0);
 
     return {
-      farmLockupOriginalDuration: farmState.lockingDuration.toNumber(),
+      farmLockupOriginalDuration: Number(farmState.lockingDuration),
       farmLockupExpiry: timestampMaturity,
       lockupRemainingDuration: remainingLockedDurationSeconds,
     };
@@ -791,7 +790,7 @@ export class Farms {
             userState.userState.delegatee,
             lamportsToCollDecimal(
               new Decimal(scaleDownWads(userState.userState.activeStakeScaled)),
-              farmState.farmState.token.decimals.toNumber(),
+              Number(farmState.farmState.token.decimals),
             ),
           );
 
@@ -934,7 +933,7 @@ export class Farms {
         userState.userState.delegatee,
         lamportsToCollDecimal(
           new Decimal(scaleDownWads(userState.userState.activeStakeScaled)),
-          farmState.farmState.token.decimals.toNumber(),
+          Number(farmState.farmState.token.decimals),
         ),
       );
 
@@ -1064,7 +1063,7 @@ export class Farms {
       user,
       lamportsToCollDecimal(
         new Decimal(scaleDownWads(userState.activeStakeScaled)),
-        farmState.token.decimals.toNumber(),
+        Number(farmState.token.decimals),
       ),
     );
 
@@ -1339,7 +1338,7 @@ export class Farms {
     ) {
       for (
         let rewardIndex = 0;
-        rewardIndex < farmState.numRewardTokens.toNumber();
+        rewardIndex < Number(farmState.numRewardTokens);
         rewardIndex++
       ) {
         const rewardMint = farmState.rewardInfos[rewardIndex].token.mint;
@@ -1347,12 +1346,12 @@ export class Farms {
           farmState.rewardInfos[rewardIndex].token.tokenProgram;
 
         const rewardMinClaimDurationSeconds =
-          farmState.rewardInfos[rewardIndex].minClaimDurationSeconds.toNumber();
+          Number(farmState.rewardInfos[rewardIndex].minClaimDurationSeconds);
 
         const lastClaimTsSeconds =
-          userStatesAndKeys[userStateIndex].userState.lastClaimTs[
+          Number(userStatesAndKeys[userStateIndex].userState.lastClaimTs[
             rewardIndex
-          ].toNumber();
+          ]);
 
         if (
           timestampSeconds - lastClaimTsSeconds <
@@ -1453,7 +1452,7 @@ export class Farms {
   }
 
   validateFarmStateForTransferOwnership(farmState: FarmState): void {
-    if (farmState.lockingMode.toNumber() !== LockingMode.None.discriminator) {
+    if (Number(farmState.lockingMode) !== LockingMode.None.discriminator) {
       throw new Error(
         "Transfer ownership is not allowed for farms with a locking mode",
       );
@@ -1658,7 +1657,7 @@ export class Farms {
             tokenProgram = farmState.rewardInfos[i].token.tokenProgram;
           }
           rewardIndex = i;
-          decimals = farmState.rewardInfos[i].token.decimals.toNumber();
+          decimals = Number(farmState.rewardInfos[i].token.decimals);
           break;
         }
       }
@@ -1668,8 +1667,8 @@ export class Farms {
       throw new Error(`Could not find reward token ${mint}`);
     }
 
-    let amountLamports = new BN(
-      collToLamportsDecimal(amount, decimals).floor().toString(),
+    let amountLamports = BigInt(
+      collToLamportsDecimal(amount, decimals).floor().toFixed(),
     );
 
     const payerRewardAta = await getAssociatedTokenAddress(
@@ -1703,9 +1702,9 @@ export class Farms {
     farmState: FarmAndKey,
     userState: Address,
     rewardMint: Address,
-    amountLamports: BN,
-    expectedRewardsIssuedCumulative: BN,
-    userStateId: BN,
+    amountLamports: bigint,
+    expectedRewardsIssuedCumulative: bigint,
+    userStateId: bigint,
   ): Promise<Instruction> {
     const rewardIndex = farmState.farmState.rewardInfos.findIndex(
       (r) => r.token.mint === rewardMint,
@@ -1748,7 +1747,7 @@ export class Farms {
       for (let i = 0; farmState.rewardInfos.length; i++) {
         if (farmState.rewardInfos[i].token.mint === mint) {
           rewardIndex = i;
-          decimals = farmState.rewardInfos[i].token.decimals.toNumber();
+          decimals = Number(farmState.rewardInfos[i].token.decimals);
           tokenProgram = farmState.rewardInfos[i].token.tokenProgram;
           break;
         }
@@ -1759,8 +1758,8 @@ export class Farms {
       throw new Error(`Could not find reward token ${mint}`);
     }
 
-    let amountLamports = new BN(
-      collToLamportsDecimal(amount, decimals).floor().toString(),
+    let amountLamports = BigInt(
+      collToLamportsDecimal(amount, decimals).floor().toFixed(),
     );
 
     let rewardVault = await getRewardVaultPDA(this._farmsProgramId, farm, mint);
@@ -1797,7 +1796,7 @@ export class Farms {
     farm: Address,
     mint: Address,
     mode: FarmConfigOptionKind,
-    value: number | Address | number[] | RewardCurvePoint[] | BN,
+    value: number | Address | number[] | RewardCurvePoint[] | bigint,
     rewardIndexOverride: number = -1,
     scopePricesOverride: Option<Address> = none(),
     newFarm: boolean = false,
@@ -1931,7 +1930,7 @@ export class Farms {
     globalConfig: Address,
     rewardMint: Address,
     rewardTokenProgram: Address,
-    amount: BN,
+    amount: bigint,
     withdrawAta?: Address,
   ): Promise<Instruction> {
     const treasuryVault = await getTreasuryVaultPDA(
@@ -1998,7 +1997,7 @@ export class Farms {
     for (let point of currentRewardScheduleCruve.points) {
       if (
         point.tsStart.toString() === U64_MAX &&
-        point.rewardPerTimeUnit.toNumber() === 0
+        Number(point.rewardPerTimeUnit) === 0
       ) {
         newRewardScheduleCurve.push({
           startTs: Date.now(),
@@ -2103,7 +2102,7 @@ export class Farms {
 
           if (
             rewardAmountPerUnit.eq(0) ||
-            reward.rewardsAvailable.eq(ZERO_BN)
+            reward.rewardsAvailable === ZERO_BN
           ) {
             return {
               rewardMint: rewardToken.mint,
@@ -2128,7 +2127,7 @@ export class Farms {
               reward,
               reward.rewardType,
               new Decimal(farmState.totalStakedAmount.toString()),
-              farmState.token.decimals.toNumber(),
+              Number(farmState.token.decimals),
               rewardTokenPrice,
             );
 
@@ -2154,7 +2153,7 @@ export class Farms {
             weeklyRewards,
             dailyRewards,
             incentivesApy,
-            hasRewardAvailable: reward.rewardsAvailable.gtn(0),
+            hasRewardAvailable: reward.rewardsAvailable > 0n,
           };
         }),
     );
@@ -2172,7 +2171,7 @@ export class Farms {
     const totalActiveStakeAmount = lamportsToCollDecimal(
       delegateAuthority === DEFAULT_PUBLIC_KEY
         ? scaleDownWads(totalActiveStakeScaled)
-        : totalActiveStakeScaled.toNumber(),
+        : Number(totalActiveStakeScaled),
       stakedTokenDecimals,
     );
 
@@ -2223,7 +2222,7 @@ export class Farms {
     const totalActiveStakeAmount = lamportsToCollDecimal(
       delegateAuthority === DEFAULT_PUBLIC_KEY
         ? scaleDownWads(totalActiveStakeScaled)
-        : totalActiveStakeScaled.toNumber(),
+        : Number(totalActiveStakeScaled),
       stakedTokenDecimals,
     );
     const simulatedTotalActiveStakeAmount =
@@ -2265,7 +2264,7 @@ export class Farms {
     monthlyRewards: Decimal;
     yearlyRewards: Decimal;
   } {
-    if (reward.rewardsAvailable.eqn(0)) {
+    if (reward.rewardsAvailable === 0n) {
       return {
         dailyRewards: new Decimal(0),
         weeklyRewards: new Decimal(0),
@@ -2335,7 +2334,7 @@ export class Farms {
       }
     }
 
-    const rewardTokenDecimals = reward.token.decimals.toNumber();
+    const rewardTokenDecimals = Number(reward.token.decimals);
     const rewardAmountPerUnitDecimals = new Decimal(10).pow(
       reward.rewardsPerSecondDecimals.toString(),
     );

@@ -60,7 +60,7 @@ export function calculateCurrentRewardPerToken(
     }
   }
 
-  return rewardCurve.points[index].rewardPerTimeUnit.toNumber();
+  return Number(rewardCurve.points[index].rewardPerTimeUnit);
 }
 
 function calculateRewardPerStake(

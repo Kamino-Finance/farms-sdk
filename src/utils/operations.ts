@@ -13,7 +13,6 @@ import {
   GlobalConfigFlagValueType,
 } from "./utils";
 import { RewardCurvePoint } from "../Farms";
-import BN from "bn.js";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { SYSVAR_RENT_ADDRESS } from "@solana/sysvars";
@@ -262,7 +261,7 @@ export function addReward(
   scopePrices: Option<Address>,
   rewardIndex: number,
   tokenProgram: Address,
-  amount: BN,
+  amount: bigint,
 ): IInstruction {
   let accounts: AddRewardsAccounts = {
     payer,
@@ -277,7 +276,7 @@ export function addReward(
 
   let args: AddRewardsArgs = {
     amount: amount,
-    rewardIndex: new BN(rewardIndex),
+    rewardIndex: BigInt(rewardIndex),
   };
 
   return addRewardsIx(args, accounts);
@@ -288,9 +287,9 @@ export function rewardUserOnce(
   farmState: Address,
   userState: Address,
   rewardIndex: number,
-  amount: BN,
-  expectedRewardsIssuedCumulative: BN,
-  userStateId: BN,
+  amount: bigint,
+  expectedRewardsIssuedCumulative: bigint,
+  userStateId: bigint,
 ): IInstruction {
   let accounts: RewardUserOnceAccounts = {
     delegateAuthority,
@@ -300,7 +299,7 @@ export function rewardUserOnce(
 
   let args: RewardUserOnceArgs = {
     amount,
-    rewardIndex: new BN(rewardIndex),
+    rewardIndex: BigInt(rewardIndex),
     expectedRewardsIssuedCumulative: expectedRewardsIssuedCumulative,
     userStateId,
   };
@@ -318,7 +317,7 @@ export function withdrawReward(
   scopePrices: Option<Address>,
   tokenProgram: Address,
   rewardIndex: number,
-  amount: BN,
+  amount: bigint,
 ): IInstruction {
   let accounts: WithdrawRewardAccounts = {
     farmAdmin: admin,
@@ -333,7 +332,7 @@ export function withdrawReward(
 
   let args: WithdrawRewardArgs = {
     amount: amount,
-    rewardIndex: new BN(rewardIndex),
+    rewardIndex: BigInt(rewardIndex),
   };
 
   return withdrawRewardIx(args, accounts);
@@ -362,7 +361,7 @@ export function updateFarmConfig(
   scopePrices: Option<Address>,
   rewardIndex: number,
   mode: Types.FarmConfigOptionKind,
-  value: number | Address | number[] | RewardCurvePoint[] | BN,
+  value: number | Address | number[] | RewardCurvePoint[] | bigint,
 ): IInstruction {
   let accounts: UpdateFarmConfigAccounts = {
     signer: farmAdmin,
@@ -383,9 +382,9 @@ export function updateFarmConfig(
       buffer.writeBigUint64LE(BigInt(value as number), 0);
       data = Uint8Array.from(buffer);
       break;
-    case ScopeOraclePriceId.discriminator: // BN arg
+    case ScopeOraclePriceId.discriminator: // bigint arg
       buffer = Buffer.alloc(8);
-      buffer.writeBigUint64LE(BigInt((value as BN).toString()), 0);
+      buffer.writeBigUint64LE(value as bigint, 0);
       data = Uint8Array.from(buffer);
       break;
     case DepositWarmupPeriod.discriminator:
@@ -496,7 +495,7 @@ export function stake(
   farmVault: Address,
   tokenMint: Address,
   scopePrices: Option<Address>,
-  amount: BN,
+  amount: bigint,
 ): IInstruction {
   let accounts: StakeAccounts = {
     owner: owner,
@@ -521,7 +520,7 @@ export function unstake(
   userState: Address,
   farmState: Address,
   scopePrices: Option<Address>,
-  amount: BN,
+  amount: bigint,
 ): IInstruction {
   let accounts: UnstakeAccounts = {
     owner: owner,
@@ -566,7 +565,7 @@ export function harvestReward(
   };
 
   let args: HarvestRewardArgs = {
-    rewardIndex: new BN(rewardIndex),
+    rewardIndex: BigInt(rewardIndex),
   };
 
   return harvestRewardIx(args, accounts);
@@ -578,7 +577,7 @@ export function withdrawTreasury(
   treasuryVault: Address,
   treasuryVaultAuthority: Address,
   globalAdminWithdrawAta: Address,
-  amount: BN,
+  amount: bigint,
   rewardMint: Address,
 ): IInstruction {
   let accounts: WithdrawTreasuryAccounts = {
@@ -639,7 +638,7 @@ export function withdrawFromFarmVault(
   withdrawerTokenAccount: Address,
   farmVault: Address,
   farmVaultsAuthority: Address,
-  amount: BN,
+  amount: bigint,
 ): IInstruction {
   let accounts: WithdrawFromFarmVaultAccounts = {
     farmState,
@@ -662,7 +661,7 @@ export function depositToFarmVault(
   farmState: Address,
   farmVault: Address,
   depositorAta: Address,
-  amount: BN,
+  amount: bigint,
 ): IInstruction {
   let accounts: DepositToFarmVaultAccounts = {
     depositor,

@@ -1,24 +1,24 @@
-import { address, Address } from "@solana/kit" // eslint-disable-line @typescript-eslint/no-unused-vars
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh"
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { address, Address } from "@solana/kit"
+import * as types from "../types"
+import * as borsh from "../utils/borsh"
 import { borshAddress } from "../utils"
-
+/* eslint-enable @typescript-eslint/no-unused-vars */
 export interface RewardInfoFields {
   token: types.TokenInfoFields
   rewardsVault: Address
-  rewardsAvailable: BN
+  rewardsAvailable: bigint
   rewardScheduleCurve: types.RewardScheduleCurveFields
-  minClaimDurationSeconds: BN
-  lastIssuanceTs: BN
-  rewardsIssuedUnclaimed: BN
-  rewardsIssuedCumulative: BN
-  rewardPerShareScaled: BN
-  placeholder0: BN
+  minClaimDurationSeconds: bigint
+  lastIssuanceTs: bigint
+  rewardsIssuedUnclaimed: bigint
+  rewardsIssuedCumulative: bigint
+  rewardPerShareScaled: bigint
+  placeholder0: bigint
   rewardType: number
   rewardsPerSecondDecimals: number
   padding0: Array<number>
-  padding1: Array<BN>
+  padding1: Array<bigint>
 }
 
 export interface RewardInfoJSON {
@@ -41,18 +41,18 @@ export interface RewardInfoJSON {
 export class RewardInfo {
   readonly token: types.TokenInfo
   readonly rewardsVault: Address
-  readonly rewardsAvailable: BN
+  readonly rewardsAvailable: bigint
   readonly rewardScheduleCurve: types.RewardScheduleCurve
-  readonly minClaimDurationSeconds: BN
-  readonly lastIssuanceTs: BN
-  readonly rewardsIssuedUnclaimed: BN
-  readonly rewardsIssuedCumulative: BN
-  readonly rewardPerShareScaled: BN
-  readonly placeholder0: BN
+  readonly minClaimDurationSeconds: bigint
+  readonly lastIssuanceTs: bigint
+  readonly rewardsIssuedUnclaimed: bigint
+  readonly rewardsIssuedCumulative: bigint
+  readonly rewardPerShareScaled: bigint
+  readonly placeholder0: bigint
   readonly rewardType: number
   readonly rewardsPerSecondDecimals: number
   readonly padding0: Array<number>
-  readonly padding1: Array<BN>
+  readonly padding1: Array<bigint>
 
   constructor(fields: RewardInfoFields) {
     this.token = new types.TokenInfo({ ...fields.token })
@@ -161,20 +161,20 @@ export class RewardInfo {
     return new RewardInfo({
       token: types.TokenInfo.fromJSON(obj.token),
       rewardsVault: address(obj.rewardsVault),
-      rewardsAvailable: new BN(obj.rewardsAvailable),
+      rewardsAvailable: BigInt(obj.rewardsAvailable),
       rewardScheduleCurve: types.RewardScheduleCurve.fromJSON(
         obj.rewardScheduleCurve
       ),
-      minClaimDurationSeconds: new BN(obj.minClaimDurationSeconds),
-      lastIssuanceTs: new BN(obj.lastIssuanceTs),
-      rewardsIssuedUnclaimed: new BN(obj.rewardsIssuedUnclaimed),
-      rewardsIssuedCumulative: new BN(obj.rewardsIssuedCumulative),
-      rewardPerShareScaled: new BN(obj.rewardPerShareScaled),
-      placeholder0: new BN(obj.placeholder0),
+      minClaimDurationSeconds: BigInt(obj.minClaimDurationSeconds),
+      lastIssuanceTs: BigInt(obj.lastIssuanceTs),
+      rewardsIssuedUnclaimed: BigInt(obj.rewardsIssuedUnclaimed),
+      rewardsIssuedCumulative: BigInt(obj.rewardsIssuedCumulative),
+      rewardPerShareScaled: BigInt(obj.rewardPerShareScaled),
+      placeholder0: BigInt(obj.placeholder0),
       rewardType: obj.rewardType,
       rewardsPerSecondDecimals: obj.rewardsPerSecondDecimals,
       padding0: obj.padding0,
-      padding1: obj.padding1.map((item) => new BN(item)),
+      padding1: obj.padding1.map((item) => BigInt(item)),
     })
   }
 

@@ -1,14 +1,14 @@
-import { address, Address } from "@solana/kit" // eslint-disable-line @typescript-eslint/no-unused-vars
-import BN from "bn.js" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as types from "../types" // eslint-disable-line @typescript-eslint/no-unused-vars
-import * as borsh from "@coral-xyz/borsh"
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { address, Address } from "@solana/kit"
+import * as types from "../types"
+import * as borsh from "../utils/borsh"
 import { borshAddress } from "../utils"
-
+/* eslint-enable @typescript-eslint/no-unused-vars */
 export interface TokenInfoFields {
   mint: Address
-  decimals: BN
+  decimals: bigint
   tokenProgram: Address
-  padding: Array<BN>
+  padding: Array<bigint>
 }
 
 export interface TokenInfoJSON {
@@ -20,9 +20,9 @@ export interface TokenInfoJSON {
 
 export class TokenInfo {
   readonly mint: Address
-  readonly decimals: BN
+  readonly decimals: bigint
   readonly tokenProgram: Address
-  readonly padding: Array<BN>
+  readonly padding: Array<bigint>
 
   constructor(fields: TokenInfoFields) {
     this.mint = fields.mint
@@ -74,9 +74,9 @@ export class TokenInfo {
   static fromJSON(obj: TokenInfoJSON): TokenInfo {
     return new TokenInfo({
       mint: address(obj.mint),
-      decimals: new BN(obj.decimals),
+      decimals: BigInt(obj.decimals),
       tokenProgram: address(obj.tokenProgram),
-      padding: obj.padding.map((item) => new BN(item)),
+      padding: obj.padding.map((item) => BigInt(item)),
     })
   }
 

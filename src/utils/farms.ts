@@ -358,7 +358,7 @@ export function getFarmConfigType(
               .filter((point) => point !== undefined),
             rewardAvailable: lamportsToCollDecimal(
               new Decimal(rewardInfo.rewardsAvailable.toString()),
-              rewardInfo.token.decimals.toNumber(),
+              Number(rewardInfo.token.decimals),
             )
               .floor()
               .toNumber(),

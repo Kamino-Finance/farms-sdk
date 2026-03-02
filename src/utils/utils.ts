@@ -19,7 +19,6 @@ import { GlobalConfig, UserState, FarmState } from "../@codegen/farms/accounts";
 import { getCreateAccountInstruction } from "@solana-program/system";
 import { PROGRAM_ID as FARMS_PROGRAM_ID } from "../@codegen/farms/programId";
 import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
-import BN from "bn.js";
 import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
 export const WAD = new Decimal("1".concat(Array(18 + 1).join("0")));
@@ -43,12 +42,12 @@ export function lamportsToCollDecimal(
   return new Decimal(amount).div(factor);
 }
 
-export function decimalToBN(value: Decimal): BN {
+export function decimalToBN(value: Decimal): bigint {
   // Note: the `Decimal.toString()` can return exponential notation (e.g. "1e9") for large numbers. This notation is
-  // not accepted by `BN` constructor (i.e. invalid character "e"). Hence, we use `Decimal.toFixed()` (which is
+  // not accepted by `BigInt` constructor (i.e. invalid character "e"). Hence, we use `Decimal.toFixed()` (which is
   // different than `number.toFixed()` - it will not do any rounding, just render a normal notation).
   // see https://mikemcl.github.io/decimal.js/#toFixed
-  return new BN(value.toFixed());
+  return BigInt(value.toFixed());
 }
 
 export interface GlobalConfigAccounts {
@@ -392,7 +391,7 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function scaleDownWads(value: BN) {
+export function scaleDownWads(value: bigint) {
   return new Decimal(value.toString()).div(WAD).toNumber();
 }
 
