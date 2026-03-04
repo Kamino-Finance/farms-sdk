@@ -4,6 +4,7 @@ import {
   IInstruction,
   Option,
   TransactionSigner,
+  unwrapOption,
 } from "@solana/kit";
 
 import {
@@ -50,10 +51,7 @@ import { FARMS_PROGRAM_ADDRESS } from "../@codegen/farms/programs";
 const addressEncoder = getAddressEncoder();
 
 function optionToAddress(opt: Option<Address>): Address | undefined {
-  if (opt.__option === "Some") {
-    return opt.value;
-  }
-  return undefined;
+  return unwrapOption(opt) ?? undefined;
 }
 
 export function initializeGlobalConfig(
