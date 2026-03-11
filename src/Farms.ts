@@ -14,15 +14,25 @@ import {
   some,
   TransactionSigner,
   UnixTimestamp,
+  getBase64Encoder,
 } from "@solana/kit";
-import BN from "bn.js";
 import Decimal from "decimal.js";
-import { FarmState, GlobalConfig, UserState } from "./@codegen/farms/accounts";
-import { PROGRAM_ID } from "./@codegen/farms/programId";
+import {
+  FarmState,
+  GlobalConfig,
+  UserState,
+  fetchMaybeFarmState,
+  fetchMaybeUserState,
+  fetchMaybeGlobalConfig,
+  fetchAllMaybeUserState,
+  getFarmStateDecoder,
+  getFarmStateSize,
+  getUserStateDecoder,
+  getUserStateSize,
+} from "./@codegen/farms/accounts";
+import { FARMS_PROGRAM_ADDRESS } from "./@codegen/farms/programs";
 import {
   FarmConfigOption,
-  FarmConfigOptionKind,
-  GlobalConfigOptionKind,
   LockingMode,
   RewardInfo,
   RewardType,
@@ -59,8 +69,6 @@ import {
   isValidPubkey,
   lamportsToCollDecimal,
   scaleDownWads,
-  SIZE_FARM_STATE,
-  SIZE_GLOBAL_CONFIG,
 } from "./utils";
 import { chunks } from "./utils/arrayUtils";
 import { batchFetch } from "./utils/batch";
@@ -69,8 +77,7 @@ import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddress,
 } from "./utils/token";
-
-import { ZERO_BN } from "@kamino-finance/kliquidity-sdk";
+import { GlobalConfigOption } from "./@codegen/farms/types";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { Connection } from "@solana/web3.js";
 import { backOff, IBackOffOptions } from "exponential-backoff";
@@ -87,6 +94,12 @@ import {
   VaultInfo,
 } from "./utils/farms";
 import { getScopePricesFromFarm } from "./utils/option";
+import { SIZE_FARM_STATE, SIZE_GLOBAL_CONFIG } from "./accountSizes";
+
+const ZERO_BN = 0n;
+const base64Encoder = getBase64Encoder();
+
+export { SIZE_FARM_STATE, SIZE_GLOBAL_CONFIG };
 
 export interface UserPointsBreakdown {
   totalPoints: Decimal;
@@ -116,7 +129,7 @@ export class Farms {
 
   constructor(
     connection: Rpc<SolanaRpcApi>,
-    farmsProgramId: Address = PROGRAM_ID,
+    farmsProgramId: Address = FARMS_PROGRAM_ADDRESS,
   ) {
     this._connection = connection;
     this._farmsProgramId = farmsProgramId;
@@ -144,7 +157,9 @@ export class Farms {
       },
     });
 
-    filters.push({ dataSize: BigInt(UserState.layout.span + 8) });
+    filters.push({ dataSize: BigInt(getUserStateSize()) });
+
+    const decoder = getUserStateDecoder();
 
     return (
       await this._connection
@@ -155,7 +170,7 @@ export class Farms {
         .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
+        userState: decoder.decode(base64Encoder.encode(x.account.data[0])),
         key: x.pubkey,
       };
       return userAndKey;
@@ -186,7 +201,9 @@ export class Farms {
       },
     });
 
-    filters.push({ dataSize: BigInt(UserState.layout.span + 8) });
+    filters.push({ dataSize: BigInt(getUserStateSize()) });
+
+    const decoder = getUserStateDecoder();
 
     return (
       await this._connection
@@ -197,7 +214,7 @@ export class Farms {
         .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
+        userState: decoder.decode(base64Encoder.encode(x.account.data[0])),
         key: x.pubkey,
       };
       return userAndKey;
@@ -205,16 +222,17 @@ export class Farms {
   }
 
   async getAllUserStates(): Promise<UserAndKey[]> {
+    const decoder = getUserStateDecoder();
     return (
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
-          filters: [{ dataSize: BigInt(UserState.layout.span + 8) }],
+          filters: [{ dataSize: BigInt(getUserStateSize()) }],
           encoding: "base64",
         })
         .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
+        userState: decoder.decode(base64Encoder.encode(x.account.data[0])),
         key: x.pubkey,
       };
       return userAndKey;
@@ -224,11 +242,12 @@ export class Farms {
   async getAllUserStatesWithFilter(
     isFarmDelegated: boolean,
   ): Promise<UserAndKey[]> {
+    const decoder = getUserStateDecoder();
     return (
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
           filters: [
-            { dataSize: BigInt(UserState.layout.span + 8) },
+            { dataSize: BigInt(getUserStateSize()) },
             {
               memcmp: {
                 offset: 80n,
@@ -242,7 +261,7 @@ export class Farms {
         .send()
     ).map((x) => {
       const userAndKey: UserAndKey = {
-        userState: UserState.decode(Buffer.from(x.account.data[0], "base64")),
+        userState: decoder.decode(base64Encoder.encode(x.account.data[0])),
         key: x.pubkey,
       };
       return userAndKey;
@@ -286,32 +305,39 @@ export class Farms {
   }
 
   async getAllUserStatesForFarm(farm: Address): Promise<UserAndKey[]> {
+    const decoder = getUserStateDecoder();
     return (
-      await this._connection
-        .getProgramAccounts(this._farmsProgramId, {
-          filters: [
-            { dataSize: BigInt(UserState.layout.span + 8) },
-            {
-              memcmp: {
-                offset: 8n + 8n,
-                bytes: farm.toString() as Base58EncodedBytes,
-                encoding: "base58",
+      (
+        await this._connection
+          .getProgramAccounts(this._farmsProgramId, {
+            filters: [
+              { dataSize: BigInt(getUserStateSize()) },
+              {
+                memcmp: {
+                  offset: 8n + 8n,
+                  bytes: farm.toString() as Base58EncodedBytes,
+                  encoding: "base58",
+                },
               },
-            },
-          ],
-          encoding: "base64+zstd",
-        })
-        .send()
-    ).map((x) => {
-      const compressedData = Buffer.from(x.account.data[0], "base64");
-      const decompressedData = decompress(compressedData);
+            ],
+            encoding: "base64+zstd",
+          })
+          .send()
+      )
+        // TODO: type properly when base64+zstd encoding type is available in @solana/kit
+        .map((x: any) => {
+          const compressedData = new Uint8Array(
+            base64Encoder.encode(x.account.data[0]),
+          );
+          const decompressedData = decompress(compressedData);
 
-      const userAndKey: UserAndKey = {
-        userState: UserState.decode(Buffer.from(decompressedData)),
-        key: x.pubkey,
-      };
-      return userAndKey;
-    });
+          const userAndKey: UserAndKey = {
+            userState: decoder.decode(decompressedData),
+            key: x.pubkey,
+          };
+          return userAndKey;
+        })
+    );
   }
 
   async getFarmsForMint(mint: Address): Promise<Array<FarmAndKey>> {
@@ -328,7 +354,9 @@ export class Farms {
       },
     });
 
-    filters.push({ dataSize: BigInt(FarmState.layout.span + 8) });
+    filters.push({ dataSize: BigInt(getFarmStateSize()) });
+
+    const decoder = getFarmStateDecoder();
 
     return (
       await this._connection
@@ -339,7 +367,7 @@ export class Farms {
         .send()
     ).map((x) => {
       const farmAndKey: FarmAndKey = {
-        farmState: FarmState.decode(Buffer.from(x.account.data[0], "base64")),
+        farmState: decoder.decode(base64Encoder.encode(x.account.data[0])),
         key: x.pubkey,
       };
       return farmAndKey;
@@ -347,10 +375,11 @@ export class Farms {
   }
 
   async getAllFarmStates(): Promise<FarmAndKey[]> {
+    const decoder = getFarmStateDecoder();
     return (
       await this._connection
         .getProgramAccounts(this._farmsProgramId, {
-          filters: [{ dataSize: BigInt(FarmState.layout.span + 8) }],
+          filters: [{ dataSize: BigInt(getFarmStateSize()) }],
           encoding: "base64",
         })
         .send()
@@ -358,9 +387,7 @@ export class Farms {
       .map((x) => {
         try {
           const farmAndKey: FarmAndKey = {
-            farmState: FarmState.decode(
-              Buffer.from(x.account.data[0], "base64"),
-            ),
+            farmState: decoder.decode(base64Encoder.encode(x.account.data[0])),
             key: x.pubkey,
           };
 
@@ -425,14 +452,15 @@ export class Farms {
   }
 
   async getStakedAmountForFarm(farm: Address): Promise<Decimal> {
-    const farmState = await FarmState.fetch(this._connection, farm);
-    if (!farmState) {
+    const farmAccount = await fetchMaybeFarmState(this._connection, farm);
+    if (!farmAccount.exists) {
       throw Error("No Farm found");
     }
+    const farmState = farmAccount.data;
 
     return lamportsToCollDecimal(
       new Decimal(scaleDownWads(farmState.totalActiveStakeScaled)),
-      farmState.token.decimals.toNumber(),
+      Number(farmState.token.decimals),
     );
   }
 
@@ -451,7 +479,7 @@ export class Farms {
       totalStaked = totalStaked.add(
         lamportsToCollDecimal(
           new Decimal(farms[index].farmState.totalStakedAmount.toString()),
-          farms[index].farmState.token.decimals.toNumber(),
+          Number(farms[index].farmState.token.decimals),
         ),
       );
     }
@@ -474,16 +502,20 @@ export class Farms {
       user,
     );
 
-    let userState = await UserState.fetch(this._connection, userStateAddress);
+    let userStateAccount = await fetchMaybeUserState(
+      this._connection,
+      userStateAddress,
+    );
 
-    let farmState = await FarmState.fetch(this._connection, farm);
-    if (!farmState) {
+    let farmAccount = await fetchMaybeFarmState(this._connection, farm);
+    if (!farmAccount.exists) {
       throw new Error("Error fetching farm state");
     }
+    const farmState = farmAccount.data;
 
-    let lockingMode = farmState?.lockingMode.toNumber();
-    let lockingDuration = farmState?.lockingDuration.toNumber();
-    let penalty = farmState.lockingEarlyWithdrawalPenaltyBps.toNumber();
+    let lockingMode = Number(farmState.lockingMode);
+    let lockingDuration = Number(farmState.lockingDuration);
+    let penalty = Number(farmState.lockingEarlyWithdrawalPenaltyBps);
 
     if (penalty !== 0 && penalty !== 10000) {
       throw "Early withdrawal penalty is not supported yet";
@@ -494,7 +526,7 @@ export class Farms {
     }
     let lockingStart = 0;
 
-    if (lockingMode == LockingMode.None.discriminator) {
+    if (lockingMode == LockingMode.None) {
       return {
         farmLockupOriginalDuration: 0,
         farmLockupExpiry: 0,
@@ -502,20 +534,18 @@ export class Farms {
       };
     }
 
-    if (lockingMode == LockingMode.WithExpiry.discriminator) {
+    if (lockingMode == LockingMode.WithExpiry) {
       // Locking starts globally for the entire farm
-      lockingStart = farmState?.lockingStartTimestamp.toNumber();
+      lockingStart = Number(farmState.lockingStartTimestamp);
     }
-    if (lockingMode == LockingMode.Continuous.discriminator) {
+    if (lockingMode == LockingMode.Continuous) {
       // Locking starts for each user individually at each stake
       // if the user has a state, else now
-      if (userState === null) {
+      if (!userStateAccount.exists) {
         lockingStart = timestampNow;
       } else {
-        if (!userState) {
-          throw new Error("Error fetching user state");
-        }
-        lockingStart = userState.lastStakeTs.toNumber();
+        const userState = userStateAccount.data;
+        lockingStart = Number(userState.lastStakeTs);
       }
     }
 
@@ -525,7 +555,7 @@ export class Farms {
     if (timestampNow >= timestampMaturity) {
       // Time has passed, no remaining
       return {
-        farmLockupOriginalDuration: farmState.lockingDuration.toNumber(),
+        farmLockupOriginalDuration: Number(farmState.lockingDuration),
         farmLockupExpiry: timestampMaturity,
         lockupRemainingDuration: 0,
       };
@@ -534,7 +564,7 @@ export class Farms {
     if (timestampNow < timestampBeginning) {
       // Time has not started, no remaining
       return {
-        farmLockupOriginalDuration: farmState.lockingDuration.toNumber(),
+        farmLockupOriginalDuration: Number(farmState.lockingDuration),
         farmLockupExpiry: timestampMaturity,
         lockupRemainingDuration: 0,
       };
@@ -544,7 +574,7 @@ export class Farms {
     const remainingLockedDurationSeconds = Math.max(timeRemaining, 0);
 
     return {
-      farmLockupOriginalDuration: farmState.lockingDuration.toNumber(),
+      farmLockupOriginalDuration: Number(farmState.lockingDuration),
       farmLockupExpiry: timestampMaturity,
       lockupRemainingDuration: remainingLockedDurationSeconds,
     };
@@ -590,16 +620,16 @@ export class Farms {
       }),
     );
 
-    const userStates = await UserState.fetchMultiple(
+    const userStateAccounts = await fetchAllMaybeUserState(
       this._connection,
       userStateAddresses,
     );
 
-    userStates.forEach((userState, index) => {
-      if (userState && userState.farmState === farm) {
+    userStateAccounts.forEach((account, index) => {
+      if (account.exists && account.data.farmState === farm) {
         userStateKeysForFarm.push({
           key: userStateAddresses[index],
-          userState: userState,
+          userState: account.data,
         });
       }
     });
@@ -791,7 +821,7 @@ export class Farms {
             userState.userState.delegatee,
             lamportsToCollDecimal(
               new Decimal(scaleDownWads(userState.userState.activeStakeScaled)),
-              farmState.farmState.token.decimals.toNumber(),
+              Number(farmState.farmState.token.decimals),
             ),
           );
 
@@ -934,7 +964,7 @@ export class Farms {
         userState.userState.delegatee,
         lamportsToCollDecimal(
           new Decimal(scaleDownWads(userState.userState.activeStakeScaled)),
-          farmState.farmState.token.decimals.toNumber(),
+          Number(farmState.farmState.token.decimals),
         ),
       );
 
@@ -993,12 +1023,15 @@ export class Farms {
       user,
     );
 
-    const userState = await UserState.fetch(this._connection, userStateAddress);
-    if (!userState) {
+    const userStateAccount = await fetchMaybeUserState(
+      this._connection,
+      userStateAddress,
+    );
+    if (!userStateAccount.exists) {
       throw new Error(`User state not found ${userStateAddress.toString()}`);
     }
 
-    return { key: userStateAddress, userState: userState };
+    return { key: userStateAddress, userState: userStateAccount.data };
   }
 
   async getUserTokensInUndelegatedFarm(
@@ -1019,10 +1052,14 @@ export class Farms {
     farmAddress: Address,
     timestamp: Decimal,
   ): Promise<UserFarm> {
-    const farmState = await FarmState.fetch(this._connection, farmAddress);
-    if (!farmState) {
+    const farmAccount = await fetchMaybeFarmState(
+      this._connection,
+      farmAddress,
+    );
+    if (!farmAccount.exists) {
       throw new Error(`Farm not found ${farmAddress.toString()}`);
     }
+    const farmState = farmAccount.data;
 
     const userStateAddress = await getUserStatePDA(
       this._farmsProgramId,
@@ -1030,10 +1067,14 @@ export class Farms {
       user,
     );
 
-    const userState = await UserState.fetch(this._connection, userStateAddress);
-    if (!userState) {
+    const userStateAccount = await fetchMaybeUserState(
+      this._connection,
+      userStateAddress,
+    );
+    if (!userStateAccount.exists) {
       throw new Error(`User state not found ${userStateAddress.toString()}`);
     }
+    const userState = userStateAccount.data;
 
     const userFarm: UserFarm = {
       userStateAddress: userStateAddress,
@@ -1064,7 +1105,7 @@ export class Farms {
       user,
       lamportsToCollDecimal(
         new Decimal(scaleDownWads(userState.activeStakeScaled)),
-        farmState.token.decimals.toNumber(),
+        Number(farmState.token.decimals),
       ),
     );
 
@@ -1248,10 +1289,11 @@ export class Farms {
           delegatees,
         )
       : [await this.getUserStateKeyForUndelegatedFarm(user.address, farm)];
-    const farmState = await FarmState.fetch(this._connection, farm);
-    if (!farmState) {
+    const farmAccount = await fetchMaybeFarmState(this._connection, farm);
+    if (!farmAccount.exists) {
       throw new Error(`Farm not found ${farm.toString()}`);
     }
+    const farmState = farmAccount.data;
 
     const treasuryVault = await getTreasuryVaultPDA(
       this._farmsProgramId,
@@ -1320,15 +1362,16 @@ export class Farms {
     isDelegated: boolean,
     delegatees?: Address[],
   ): Promise<Array<Instruction>> {
-    const farmState = await FarmState.fetch(this._connection, farm);
+    const farmAccount = await fetchMaybeFarmState(this._connection, farm);
     const userStatesAndKeys = isDelegated
       ? await this.getUserStateKeysForDelegatedFarm(user, farm, delegatees)
       : [await this.getUserStateKeyForUndelegatedFarm(user, farm)];
     const ixs = new Array<Instruction>();
 
-    if (!farmState) {
+    if (!farmAccount.exists) {
       throw new Error(`Farm not found ${farm.toString()}`);
     }
+    const farmState = farmAccount.data;
 
     const timestampSeconds = Date.now() / 1000;
 
@@ -1339,20 +1382,20 @@ export class Farms {
     ) {
       for (
         let rewardIndex = 0;
-        rewardIndex < farmState.numRewardTokens.toNumber();
+        rewardIndex < Number(farmState.numRewardTokens);
         rewardIndex++
       ) {
         const rewardMint = farmState.rewardInfos[rewardIndex].token.mint;
         const rewardTokenProgram =
           farmState.rewardInfos[rewardIndex].token.tokenProgram;
 
-        const rewardMinClaimDurationSeconds =
-          farmState.rewardInfos[rewardIndex].minClaimDurationSeconds.toNumber();
+        const rewardMinClaimDurationSeconds = Number(
+          farmState.rewardInfos[rewardIndex].minClaimDurationSeconds,
+        );
 
-        const lastClaimTsSeconds =
-          userStatesAndKeys[userStateIndex].userState.lastClaimTs[
-            rewardIndex
-          ].toNumber();
+        const lastClaimTsSeconds = Number(
+          userStatesAndKeys[userStateIndex].userState.lastClaimTs[rewardIndex],
+        );
 
         if (
           timestampSeconds - lastClaimTsSeconds <
@@ -1415,29 +1458,29 @@ export class Farms {
     userState: Address,
     newUser: Address,
   ): Promise<Instruction> {
-    const userStateData = await UserState.fetch(
+    const userStateAccount = await fetchMaybeUserState(
       this._connection,
       userState,
-      this._farmsProgramId,
     );
-    if (!userStateData) {
+    if (!userStateAccount.exists) {
       throw new Error(`User state not found ${userState.toString()}`);
     }
-    const farmState = await FarmState.fetch(
+    const userStateData = userStateAccount.data;
+    const farmAccount = await fetchMaybeFarmState(
       this._connection,
       userStateData.farmState,
-      this._farmsProgramId,
     );
-    if (!farmState) {
+    if (!farmAccount.exists) {
       throw new Error(
         `Farm state not found ${userStateData.farmState.toString()}`,
       );
     }
+    const farmState = farmAccount.data;
 
     this.validateFarmStateForTransferOwnership(farmState);
 
     const newOwnerUserState = await getUserStatePDA(
-      PROGRAM_ID,
+      FARMS_PROGRAM_ADDRESS,
       userStateData.farmState,
       newUser,
     );
@@ -1453,7 +1496,7 @@ export class Farms {
   }
 
   validateFarmStateForTransferOwnership(farmState: FarmState): void {
-    if (farmState.lockingMode.toNumber() !== LockingMode.None.discriminator) {
+    if (Number(farmState.lockingMode) !== LockingMode.None) {
       throw new Error(
         "Transfer ownership is not allowed for farms with a locking mode",
       );
@@ -1492,7 +1535,7 @@ export class Farms {
       this.validateFarmStateForTransferOwnership(farmState.farmState);
 
       const newOwnerUserState = await getUserStatePDA(
-        PROGRAM_ID,
+        FARMS_PROGRAM_ADDRESS,
         farmAddress,
         newUser,
       );
@@ -1591,13 +1634,14 @@ export class Farms {
     mint: Address,
     tokenProgram: Address,
   ): Promise<Instruction> {
-    const globalConfigState = await GlobalConfig.fetch(
+    const globalConfigAccount = await fetchMaybeGlobalConfig(
       this._connection,
       globalConfig,
     );
-    if (!globalConfigState) {
+    if (!globalConfigAccount.exists) {
       throw new Error("Could not fetch global config");
     }
+    const globalConfigState = globalConfigAccount.data;
     const treasuryVault = await getTreasuryVaultPDA(
       this._farmsProgramId,
       globalConfig,
@@ -1644,10 +1688,11 @@ export class Farms {
     let scopePrices = scopePricesOverride;
     let tokenProgram = tokenProgramOverride;
     if (rewardIndex == -1) {
-      const farmState = await FarmState.fetch(this._connection, farm);
-      if (!farmState) {
+      const farmAccount = await fetchMaybeFarmState(this._connection, farm);
+      if (!farmAccount.exists) {
         throw new Error(`Could not fetch farm state ${farm}`);
       }
+      const farmState = farmAccount.data;
       scopePrices = getScopePricesFromFarm(farmState);
 
       for (let i = 0; farmState.rewardInfos.length; i++) {
@@ -1658,7 +1703,7 @@ export class Farms {
             tokenProgram = farmState.rewardInfos[i].token.tokenProgram;
           }
           rewardIndex = i;
-          decimals = farmState.rewardInfos[i].token.decimals.toNumber();
+          decimals = Number(farmState.rewardInfos[i].token.decimals);
           break;
         }
       }
@@ -1668,8 +1713,8 @@ export class Farms {
       throw new Error(`Could not find reward token ${mint}`);
     }
 
-    let amountLamports = new BN(
-      collToLamportsDecimal(amount, decimals).floor().toString(),
+    let amountLamports = BigInt(
+      collToLamportsDecimal(amount, decimals).floor().toFixed(),
     );
 
     const payerRewardAta = await getAssociatedTokenAddress(
@@ -1703,9 +1748,9 @@ export class Farms {
     farmState: FarmAndKey,
     userState: Address,
     rewardMint: Address,
-    amountLamports: BN,
-    expectedRewardsIssuedCumulative: BN,
-    userStateId: BN,
+    amountLamports: bigint,
+    expectedRewardsIssuedCumulative: bigint,
+    userStateId: bigint,
   ): Promise<Instruction> {
     const rewardIndex = farmState.farmState.rewardInfos.findIndex(
       (r) => r.token.mint === rewardMint,
@@ -1739,16 +1784,17 @@ export class Farms {
     let rewardIndex = rewardIndexOverride;
     let scopePrices = scopePricesOverride;
     if (rewardIndex == -1) {
-      const farmState = await FarmState.fetch(this._connection, farm);
-      if (!farmState) {
+      const farmAccount = await fetchMaybeFarmState(this._connection, farm);
+      if (!farmAccount.exists) {
         throw new Error(`Could not fetch farm state ${farm}`);
       }
+      const farmState = farmAccount.data;
       scopePrices = getScopePricesFromFarm(farmState);
 
       for (let i = 0; farmState.rewardInfos.length; i++) {
         if (farmState.rewardInfos[i].token.mint === mint) {
           rewardIndex = i;
-          decimals = farmState.rewardInfos[i].token.decimals.toNumber();
+          decimals = Number(farmState.rewardInfos[i].token.decimals);
           tokenProgram = farmState.rewardInfos[i].token.tokenProgram;
           break;
         }
@@ -1759,8 +1805,8 @@ export class Farms {
       throw new Error(`Could not find reward token ${mint}`);
     }
 
-    let amountLamports = new BN(
-      collToLamportsDecimal(amount, decimals).floor().toString(),
+    let amountLamports = BigInt(
+      collToLamportsDecimal(amount, decimals).floor().toFixed(),
     );
 
     let rewardVault = await getRewardVaultPDA(this._farmsProgramId, farm, mint);
@@ -1796,8 +1842,8 @@ export class Farms {
     admin: TransactionSigner,
     farm: Address,
     mint: Address,
-    mode: FarmConfigOptionKind,
-    value: number | Address | number[] | RewardCurvePoint[] | BN,
+    mode: FarmConfigOption,
+    value: number | Address | number[] | RewardCurvePoint[] | bigint,
     rewardIndexOverride: number = -1,
     scopePricesOverride: Option<Address> = none(),
     newFarm: boolean = false,
@@ -1805,10 +1851,11 @@ export class Farms {
     let rewardIndex = rewardIndexOverride;
     let scopePrices = scopePricesOverride;
     if (rewardIndex == -1 && !newFarm) {
-      const farmState = await FarmState.fetch(this._connection, farm);
-      if (!farmState) {
+      const farmAccount = await fetchMaybeFarmState(this._connection, farm);
+      if (!farmAccount.exists) {
         throw new Error(`Could not fetch farm state ${farm}`);
       }
+      const farmState = farmAccount.data;
 
       if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
         scopePrices = some(farmState.scopePrices);
@@ -1883,7 +1930,7 @@ export class Farms {
   async updateGlobalConfigIx(
     admin: TransactionSigner,
     globalConfig: Address,
-    mode: GlobalConfigOptionKind,
+    mode: GlobalConfigOption,
     flagValue: string,
     flagValueType: GlobalConfigFlagValueType,
   ): Promise<Instruction> {
@@ -1931,7 +1978,7 @@ export class Farms {
     globalConfig: Address,
     rewardMint: Address,
     rewardTokenProgram: Address,
-    amount: BN,
+    amount: bigint,
     withdrawAta?: Address,
   ): Promise<Instruction> {
     const treasuryVault = await getTreasuryVaultPDA(
@@ -1968,17 +2015,12 @@ export class Farms {
     farm: Address,
     rewardsPerSecond: number,
   ): Promise<Instruction> {
-    const farmsClient = new Farms(this._connection);
+    const farmAccount = await fetchMaybeFarmState(this._connection, farm);
 
-    const farmState = await FarmState.fetch(
-      this._connection,
-      farm,
-      farmsClient.getProgramID(),
-    );
-
-    if (!farmState) {
+    if (!farmAccount.exists) {
       throw new Error("Farm not found");
     }
+    const farmState = farmAccount.data;
 
     let rewardIndex: number = 0;
 
@@ -1998,7 +2040,7 @@ export class Farms {
     for (let point of currentRewardScheduleCruve.points) {
       if (
         point.tsStart.toString() === U64_MAX &&
-        point.rewardPerTimeUnit.toNumber() === 0
+        Number(point.rewardPerTimeUnit) === 0
       ) {
         newRewardScheduleCurve.push({
           startTs: Date.now(),
@@ -2018,9 +2060,7 @@ export class Farms {
       payer,
       farm,
       rewardMint,
-      FarmConfigOption.fromDecoded({
-        [FarmConfigOption.UpdateRewardScheduleCurvePoints.kind]: "",
-      }),
+      FarmConfigOption.UpdateRewardScheduleCurvePoints,
       newRewardScheduleCurve,
       rewardIndex,
     );
@@ -2032,15 +2072,12 @@ export class Farms {
     farm: Address,
     amountToTopUp: Decimal,
   ): Promise<Instruction> {
-    const farmState = await FarmState.fetch(
-      this._connection,
-      farm,
-      this.getProgramID(),
-    );
+    const farmAccount = await fetchMaybeFarmState(this._connection, farm);
 
-    if (!farmState) {
+    if (!farmAccount.exists) {
       throw new Error("Farm not found");
     }
+    const farmState = farmAccount.data;
 
     let rewardIndex: number = 0;
 
@@ -2066,7 +2103,8 @@ export class Farms {
     keys: Address[],
   ): Promise<(FarmState | null)[]> {
     // Custom deserialization to avoid fetching non-serializable accounts
-    const farmStateSize = BigInt(FarmState.layout.span + 8);
+    const farmStateSize = BigInt(getFarmStateSize());
+    const decoder = getFarmStateDecoder();
     const infos = await this._connection.getMultipleAccounts(keys).send();
     return infos.value.map((info) => {
       if (info === null) {
@@ -2080,7 +2118,7 @@ export class Farms {
         throw new Error("account doesn't belong to this program");
       }
 
-      return FarmState.decode(Buffer.from(info.data[0], "base64"));
+      return decoder.decode(base64Encoder.encode(info.data[0]));
     });
   }
 
@@ -2103,7 +2141,7 @@ export class Farms {
 
           if (
             rewardAmountPerUnit.eq(0) ||
-            reward.rewardsAvailable.eq(ZERO_BN)
+            reward.rewardsAvailable === ZERO_BN
           ) {
             return {
               rewardMint: rewardToken.mint,
@@ -2128,7 +2166,7 @@ export class Farms {
               reward,
               reward.rewardType,
               new Decimal(farmState.totalStakedAmount.toString()),
-              farmState.token.decimals.toNumber(),
+              Number(farmState.token.decimals),
               rewardTokenPrice,
             );
 
@@ -2154,7 +2192,7 @@ export class Farms {
             weeklyRewards,
             dailyRewards,
             incentivesApy,
-            hasRewardAvailable: reward.rewardsAvailable.gtn(0),
+            hasRewardAvailable: reward.rewardsAvailable > 0n,
           };
         }),
     );
@@ -2172,7 +2210,7 @@ export class Farms {
     const totalActiveStakeAmount = lamportsToCollDecimal(
       delegateAuthority === DEFAULT_PUBLIC_KEY
         ? scaleDownWads(totalActiveStakeScaled)
-        : totalActiveStakeScaled.toNumber(),
+        : Number(totalActiveStakeScaled),
       stakedTokenDecimals,
     );
 
@@ -2223,7 +2261,7 @@ export class Farms {
     const totalActiveStakeAmount = lamportsToCollDecimal(
       delegateAuthority === DEFAULT_PUBLIC_KEY
         ? scaleDownWads(totalActiveStakeScaled)
-        : totalActiveStakeScaled.toNumber(),
+        : Number(totalActiveStakeScaled),
       stakedTokenDecimals,
     );
     const simulatedTotalActiveStakeAmount =
@@ -2265,7 +2303,7 @@ export class Farms {
     monthlyRewards: Decimal;
     yearlyRewards: Decimal;
   } {
-    if (reward.rewardsAvailable.eqn(0)) {
+    if (reward.rewardsAvailable === 0n) {
       return {
         dailyRewards: new Decimal(0),
         weeklyRewards: new Decimal(0),
@@ -2277,7 +2315,7 @@ export class Farms {
     // Find the more recent timestamp and rps
     let rewardAmountPerUnit = this.getRewardPerTimeUnitSecond(reward);
 
-    if (rewardType === RewardType.Constant.discriminator) {
+    if (rewardType === RewardType.Constant) {
       const stakedAmountNumber = lamportsToCollDecimal(
         totalStakedAmount,
         stakedTokenDecimals,
@@ -2318,24 +2356,16 @@ export class Farms {
       const thisPeriodEnd = new Decimal(tsStartNextPoint.toString());
       const rps = new Decimal(rewardPerTimeUnit.toString());
 
-      // Rules:
-      // Period is in the past:     If we are after this period, then we don't count it
-      // Period is in the future:   If we are before this period, we count it fully
-      // Period is in the present:  If we are during this period, we count it partially
-      // Period is past locking cutoff: We dismiss it
-
       if (thisPeriodStart <= now && thisPeriodEnd >= now) {
-        // Period is in the present:  If we are during this period, we count the reward based on it
         rewardPerTimeUnitSecond = rps;
         break;
       } else if (thisPeriodStart > now && thisPeriodEnd > now) {
-        // Period is in the future: If we are before this period, we count it fully
         rewardPerTimeUnitSecond = rps;
         break;
       }
     }
 
-    const rewardTokenDecimals = reward.token.decimals.toNumber();
+    const rewardTokenDecimals = Number(reward.token.decimals);
     const rewardAmountPerUnitDecimals = new Decimal(10).pow(
       reward.rewardsPerSecondDecimals.toString(),
     );
@@ -2356,7 +2386,7 @@ export async function getCurrentTimeUnit(
   slot: Slot,
   timestamp: UnixTimestamp,
 ): Promise<Decimal> {
-  if (farm.timeUnit == TimeUnit.Seconds.discriminator) {
+  if (farm.timeUnit == TimeUnit.Seconds) {
     return new Decimal(timestamp.toString());
   } else {
     return new Decimal(slot.toString());

@@ -6,7 +6,11 @@ import {
   VestingConfig,
 } from "./vestingUtils";
 import { Farms } from "../Farms";
-import { FarmState, UserState } from "../@codegen/farms/accounts";
+import {
+  FarmState,
+  UserState,
+  fetchMaybeFarmState,
+} from "../@codegen/farms/accounts";
 import { address, Address } from "@solana/kit";
 import Decimal from "decimal.js";
 import { getTokenAccountBalanceLamports, getUserStatePDA } from "./utils";
@@ -78,7 +82,7 @@ export function getUserStateDefaultLastClaimTs(
   if (firstEmptyRewardIndex === -1) {
     throw new Error("No empty reward slot found in farm state");
   }
-  return userState.lastClaimTs[firstEmptyRewardIndex].toNumber();
+  return Number(userState.lastClaimTs[firstEmptyRewardIndex]);
 }
 
 export function getRewardIndexInFarm(
@@ -107,13 +111,14 @@ export async function getSeasonFarmsData(
 
   for (const seasonFarm of seasonFarms) {
     const seasonFarmAddress = address(seasonFarm.farmAddress);
-    const farmState = await FarmState.fetch(
+    const farmAccount = await fetchMaybeFarmState(
       farmsClient.getConnection(),
       seasonFarmAddress,
     );
-    if (!farmState) {
+    if (!farmAccount.exists) {
       throw new Error(`Farm not found: ${seasonFarm.farmAddress}`);
     }
+    const farmState = farmAccount.data;
     const rewardIndex = getRewardIndexInFarm(farmState, seasonFarm.rewardMint);
     if (rewardIndex === -1) {
       console.warn(
@@ -122,8 +127,9 @@ export async function getSeasonFarmsData(
       continue;
     }
 
-    const rewardDecimals =
-      farmState.rewardInfos[rewardIndex].token.decimals.toNumber();
+    const rewardDecimals = Number(
+      farmState.rewardInfos[rewardIndex].token.decimals,
+    );
     const rewardDecimalFactor = new Decimal(10).pow(rewardDecimals);
 
     const totalFarmVestingCalculation = calculateVestingAtTime(
@@ -231,9 +237,7 @@ export async function getSeasonFarmsData(
         farmState,
         userState,
       );
-      if (
-        userState.lastClaimTs[rewardIndex].toNumber() > userDefaultLastClaimTs
-      ) {
+      if (Number(userState.lastClaimTs[rewardIndex]) > userDefaultLastClaimTs) {
         const userTotalClaimedDecimal = new Decimal(
           userState.rewardsIssuedCumulative[rewardIndex].toString(),
         ).div(rewardDecimalFactor);
@@ -268,7 +272,7 @@ export async function getSeasonFarmsData(
         .lessThanOrEqualTo(userTotalClaimableAtStatsTs);
 
       const hasClaimedAfterVestingEnd =
-        userState.lastClaimTs[rewardIndex].toNumber() > vestingEndTsSeconds;
+        Number(userState.lastClaimTs[rewardIndex]) > vestingEndTsSeconds;
       const userRewardsIssuedUnclaimed = new Decimal(
         userState.rewardsIssuedUnclaimed[rewardIndex].toString(),
       ).div(rewardDecimalFactor);
@@ -276,8 +280,7 @@ export async function getSeasonFarmsData(
         userTotalClaimableAtStatsTs.equals(userRewardsIssuedUnclaimed) &&
         userTotalClaimableAtStatsTs.equals(userAllocationDecimal) &&
         statsTimestampSeconds > vestingEndTsSeconds &&
-        userState.lastClaimTs[rewardIndex].toNumber() ===
-          userDefaultLastClaimTs;
+        Number(userState.lastClaimTs[rewardIndex]) === userDefaultLastClaimTs;
 
       if (isFullyVestedAndAwarded || hasClaimedAfterVestingEnd) {
         numberOfFullyVestedUsers += 1;

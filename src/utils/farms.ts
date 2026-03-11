@@ -1,6 +1,9 @@
 import { Address } from "@solana/kit";
 import Decimal from "decimal.js";
-import { FarmAndKey, FarmState, lamportsToCollDecimal, RewardType } from "..";
+import { FarmAndKey } from "../models";
+import { FarmState } from "../@codegen/farms/accounts";
+import { RewardType } from "../@codegen/farms/types";
+import { lamportsToCollDecimal } from "./utils";
 import { U64_MAX } from "./consts";
 import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
@@ -302,15 +305,12 @@ export type FarmMetadata = {
   vault: Address | undefined;
 };
 
-function getRewardType(rewardTypeNumber: number): string {
-  switch (rewardTypeNumber) {
-    case RewardType.Proportional.discriminator:
-      return RewardType.Proportional.kind;
-    case RewardType.Constant.discriminator:
-      return RewardType.Constant.kind;
-    default:
-      throw new Error(`Invalid reward type: ${rewardTypeNumber}`);
+function getRewardType(rewardType: RewardType): string {
+  const name = RewardType[rewardType];
+  if (name === undefined) {
+    throw new Error(`Invalid reward type: ${rewardType}`);
   }
+  return name;
 }
 
 export function getFarmConfigType(
@@ -358,7 +358,7 @@ export function getFarmConfigType(
               .filter((point) => point !== undefined),
             rewardAvailable: lamportsToCollDecimal(
               new Decimal(rewardInfo.rewardsAvailable.toString()),
-              rewardInfo.token.decimals.toNumber(),
+              Number(rewardInfo.token.decimals),
             )
               .floor()
               .toNumber(),

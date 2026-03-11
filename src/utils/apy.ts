@@ -3,7 +3,7 @@ import { Address, Rpc, SolanaRpcApi } from "@solana/kit";
 import { Farms } from "../Farms";
 import Decimal from "decimal.js";
 import { FarmIncentives } from "../models";
-import { FarmState } from "../@codegen/farms/accounts";
+import { FarmState, fetchMaybeFarmState } from "../@codegen/farms/accounts";
 import { getTokenPrice } from "./price";
 
 export async function getRewardsApyForStrategy(
@@ -39,20 +39,19 @@ export async function getFarmIncentives(
   stakedTokenMintDecimals: number,
   pricesMap?: Map<Address, Decimal>,
 ): Promise<FarmIncentives> {
-  const farmState = await FarmState.fetch(
+  const farmAccount = await fetchMaybeFarmState(
     farmsClient.getConnection(),
     farm,
-    farmsClient.getProgramID(),
   );
 
-  if (!farmState) {
+  if (!farmAccount.exists) {
     throw new Error(`Farm state not found for farm: ${farm}`);
   }
 
   return await getFarmIncentivesWithExistentState(
     farmsClient,
     farm,
-    farmState,
+    farmAccount.data,
     stakedTokenPrice,
     stakedTokenMintDecimals,
     pricesMap,

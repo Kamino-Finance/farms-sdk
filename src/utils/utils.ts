@@ -1,4 +1,4 @@
-import { fromCode as fromFarmsErrorCode } from "../@codegen/farms/errors/index";
+import { getFarmsErrorMessage } from "../@codegen/farms/errors/farms";
 import {
   Address,
   IInstruction,
@@ -15,11 +15,17 @@ import {
   isAddress,
 } from "@solana/kit";
 import { Decimal } from "decimal.js";
-import { GlobalConfig, UserState, FarmState } from "../@codegen/farms/accounts";
+import {
+  FarmState,
+  UserState,
+  GlobalConfig,
+  fetchMaybeFarmState,
+  fetchMaybeUserState,
+  fetchMaybeGlobalConfig,
+} from "../@codegen/farms/accounts";
 import { getCreateAccountInstruction } from "@solana-program/system";
-import { PROGRAM_ID as FARMS_PROGRAM_ID } from "../@codegen/farms/programId";
+import { FARMS_PROGRAM_ADDRESS } from "../@codegen/farms/programs";
 import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
-import BN from "bn.js";
 import { DEFAULT_PUBLIC_KEY } from "./pubkey";
 
 export const WAD = new Decimal("1".concat(Array(18 + 1).join("0")));
@@ -43,12 +49,12 @@ export function lamportsToCollDecimal(
   return new Decimal(amount).div(factor);
 }
 
-export function decimalToBN(value: Decimal): BN {
+export function decimalToBN(value: Decimal): bigint {
   // Note: the `Decimal.toString()` can return exponential notation (e.g. "1e9") for large numbers. This notation is
-  // not accepted by `BN` constructor (i.e. invalid character "e"). Hence, we use `Decimal.toFixed()` (which is
+  // not accepted by `BigInt` constructor (i.e. invalid character "e"). Hence, we use `Decimal.toFixed()` (which is
   // different than `number.toFixed()` - it will not do any rounding, just render a normal notation).
   // see https://mikemcl.github.io/decimal.js/#toFixed
-  return new BN(value.toFixed());
+  return BigInt(value.toFixed());
 }
 
 export interface GlobalConfigAccounts {
@@ -117,20 +123,13 @@ export async function mapAnchorError<T>(fn: Promise<T>): Promise<T> {
       JSON.stringify(e),
     );
     if (isCustomProgramError) {
-      let error: any;
       if (!isNaN(Number(errorCode))) {
-        error = fromFarmsErrorCode(Number(errorCode));
-        throw new Error(error);
-      } else if (Number(errorCode) >= 6000 && Number(errorCode) <= 7000) {
-        errorCode[errorCode.length - 2] === "0"
-          ? (errorCode = errorCode.slice(-1))
-          : (errorCode = errorCode.slice(-2));
-        // @ts-ignore
-        error = FarmsIdl.errors![errorCode].msg;
-        throw new Error(error);
-      } else {
-        throw new Error(e);
+        const errorMessage = getFarmsErrorMessage(Number(errorCode) as any);
+        if (errorMessage) {
+          throw new Error(errorMessage);
+        }
       }
+      throw new Error(e);
     }
     throw e;
   }
@@ -205,32 +204,40 @@ export async function accountExist(
 
 export async function fetchFarmStateWithRetry(
   rpc: Rpc<GetAccountInfoApi>,
-  address: Address,
+  addr: Address,
 ): Promise<FarmState | null> {
-  return fetchWithRetry(
-    async () => await FarmState.fetch(rpc, address),
-    address,
-  );
+  return fetchWithRetry(async () => {
+    const account = await fetchMaybeFarmState(rpc, addr);
+    return account.exists ? account.data : null;
+  }, addr);
 }
 
 export async function fetchGlobalConfigWithRetry(
   rpc: Rpc<GetAccountInfoApi>,
-  address: Address,
+  addr: Address,
 ): Promise<GlobalConfig> {
-  return fetchWithRetry(
-    async () => await GlobalConfig.fetch(rpc, address),
-    address,
-  );
+  const result = await fetchWithRetry(async () => {
+    const account = await fetchMaybeGlobalConfig(rpc, addr);
+    return account.exists ? account.data : null;
+  }, addr);
+  if (result === null) {
+    throw new Error(`GlobalConfig account ${addr} not found after retries`);
+  }
+  return result;
 }
 
 export async function fetchUserStateWithRetry(
   rpc: Rpc<GetAccountInfoApi>,
-  address: Address,
+  addr: Address,
 ): Promise<UserState> {
-  return fetchWithRetry(
-    async () => await UserState.fetch(rpc, address),
-    address,
-  );
+  const result = await fetchWithRetry(async () => {
+    const account = await fetchMaybeUserState(rpc, addr);
+    return account.exists ? account.data : null;
+  }, addr);
+  if (result === null) {
+    throw new Error(`UserState account ${addr} not found after retries`);
+  }
+  return result;
 }
 
 export async function getTreasuryVaultPDA(
@@ -240,7 +247,7 @@ export async function getTreasuryVaultPDA(
 ): Promise<Address> {
   const [treasuryVault] = await getProgramDerivedAddress({
     seeds: [
-      Buffer.from("tvault"),
+      new TextEncoder().encode("tvault"),
       addressEncoder.encode(globalConfig),
       addressEncoder.encode(rewardMint),
     ],
@@ -254,7 +261,10 @@ export async function getTreasuryAuthorityPDA(
   globalConfig: Address,
 ): Promise<Address> {
   const [treasuryAuthority] = await getProgramDerivedAddress({
-    seeds: [Buffer.from("authority"), addressEncoder.encode(globalConfig)],
+    seeds: [
+      new TextEncoder().encode("authority"),
+      addressEncoder.encode(globalConfig),
+    ],
     programAddress: farmsProgramId,
   });
   return treasuryAuthority;
@@ -265,7 +275,10 @@ export async function getFarmAuthorityPDA(
   farmState: Address,
 ): Promise<Address> {
   const [farmAuthority] = await getProgramDerivedAddress({
-    seeds: [Buffer.from("authority"), addressEncoder.encode(farmState)],
+    seeds: [
+      new TextEncoder().encode("authority"),
+      addressEncoder.encode(farmState),
+    ],
     programAddress: farmsProgramId,
   });
   return farmAuthority;
@@ -278,7 +291,7 @@ export async function getFarmVaultPDA(
 ): Promise<Address> {
   const [farmVault] = await getProgramDerivedAddress({
     seeds: [
-      Buffer.from("fvault"),
+      new TextEncoder().encode("fvault"),
       addressEncoder.encode(farmState),
       addressEncoder.encode(tokenMint),
     ],
@@ -294,7 +307,7 @@ export async function getRewardVaultPDA(
 ): Promise<Address> {
   const [rewardVault] = await getProgramDerivedAddress({
     seeds: [
-      Buffer.from("rvault"),
+      new TextEncoder().encode("rvault"),
       addressEncoder.encode(farmState),
       addressEncoder.encode(rewardMint),
     ],
@@ -310,7 +323,7 @@ export async function getUserStatePDA(
 ): Promise<Address> {
   const [userState] = await getProgramDerivedAddress({
     seeds: [
-      Buffer.from("user"),
+      new TextEncoder().encode("user"),
       addressEncoder.encode(farmState),
       addressEncoder.encode(owner),
     ],
@@ -357,15 +370,16 @@ export function getGlobalConfigValue(
     throw new Error("flagValueType must be 'number', 'bool', or 'publicKey'");
   }
 
-  let buffer: Buffer;
+  let buffer: Uint8Array;
   if (typeof value === "string" && isAddress(value)) {
-    buffer = Buffer.from(addressEncoder.encode(value));
+    buffer = new Uint8Array(addressEncoder.encode(value));
   } else if (typeof value === "boolean") {
-    buffer = Buffer.alloc(32);
-    value ? buffer.writeUInt8(1, 0) : buffer.writeUInt8(0, 0);
+    buffer = new Uint8Array(32);
+    buffer[0] = value ? 1 : 0;
   } else if (typeof value === "bigint") {
-    buffer = Buffer.alloc(32);
-    buffer.writeBigUInt64LE(value); // Because we send 32 bytes and a u64 has 8 bytes, we write it in LE
+    buffer = new Uint8Array(32);
+    const view = new DataView(buffer.buffer);
+    view.setBigUint64(0, value, true); // Because we send 32 bytes and a u64 has 8 bytes, we write it in LE
   } else {
     throw Error("wrong type for value");
   }
@@ -377,7 +391,7 @@ export async function createKeypairRentExemptIx(
   payer: TransactionSigner,
   account: TransactionSigner,
   size: bigint,
-  programId: Address = FARMS_PROGRAM_ID,
+  programId: Address = FARMS_PROGRAM_ADDRESS,
 ): Promise<IInstruction> {
   return getCreateAccountInstruction({
     payer: payer,
@@ -392,7 +406,7 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function scaleDownWads(value: BN) {
+export function scaleDownWads(value: bigint) {
   return new Decimal(value.toString()).div(WAD).toNumber();
 }
 
