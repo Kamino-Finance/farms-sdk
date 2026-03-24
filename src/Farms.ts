@@ -2102,6 +2102,9 @@ export class Farms {
   async fetchMultipleFarmStatesWithCheckedSize(
     keys: Address[],
   ): Promise<(FarmState | null)[]> {
+    if (keys.length === 0) {
+      return [];
+    }
     // Custom deserialization to avoid fetching non-serializable accounts
     const farmStateSize = BigInt(getFarmStateSize());
     const decoder = getFarmStateDecoder();
