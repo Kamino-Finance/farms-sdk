@@ -126,6 +126,12 @@ Then run the following command in order to set the current admin to the pending 
 
 For a full example check `farms-sdk/src/commands/example_update_rps_and_top_up.ts`
 
+### How to fetch all farms for a user
+
+`yarn cli get-all-farms-for-user-with-filter --wallet <wallet_pk> --vault <vault_pk_1> --vault <vault_pk_2>`
+
+`yarn cli get-all-farms-for-user-without-filter --wallet <wallet_pk>`
+
 ### How to top up a farm - permissionless
 
 ```ts

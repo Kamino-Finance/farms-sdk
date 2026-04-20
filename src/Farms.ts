@@ -709,7 +709,7 @@ export class Farms {
       vaultsToInclude,
     );
 
-    return farmStates;
+    return farmStatesFiltered;
   }
 
   getUserPendingRewards(

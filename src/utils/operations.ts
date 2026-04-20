@@ -43,7 +43,6 @@ import {
   getDepositToFarmVaultInstruction,
   getRewardUserOnceInstruction,
 } from "../@codegen/farms/instructions";
-import { FARMS_PROGRAM_ADDRESS } from "../@codegen/farms/programs";
 
 const addressEncoder = getAddressEncoder();
 
@@ -304,6 +303,7 @@ export function updateFarmConfig(
     case FarmConfigOption.UpdateDelegatedRpsAdmin:
     case FarmConfigOption.UpdateVaultId:
     case FarmConfigOption.UpdateDelegatedAuthority:
+    case FarmConfigOption.UpdateExtraDelegatedAuthority:
       data = new Uint8Array(addressEncoder.encode(value as Address));
       break;
     case FarmConfigOption.UpdateRewardScheduleCurvePoints: {
