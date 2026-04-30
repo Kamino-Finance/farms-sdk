@@ -82,6 +82,7 @@ import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { Connection } from "@solana/web3.js";
 import { backOff, IBackOffOptions } from "exponential-backoff";
 import { decompress } from "fzstd";
+import BN from "bn.js";
 import { getRewardsApyForStrategy } from "./utils";
 import { U64_MAX } from "./utils/consts";
 import {
@@ -112,6 +113,21 @@ export interface UserPointsBreakdown {
 export interface RewardCurvePoint {
   startTs: number;
   rps: number;
+}
+
+export type PendingWithdrawalCooldownUnit = "seconds" | "slots";
+
+export interface PendingWithdrawalCooldownStatus {
+  userStateAddress?: Address;
+  farm: Address;
+  stakeTokenMint: Address;
+  hasPendingWithdrawal: boolean;
+  pendingWithdrawalUnstakeScaled: BN;
+  canWithdraw: boolean;
+  currentTimeUnit: BN;
+  unlockAt: BN;
+  remaining: BN;
+  unit: PendingWithdrawalCooldownUnit;
 }
 
 const SOLANA_API_RETRY: Partial<IBackOffOptions> = {
@@ -1032,6 +1048,122 @@ export class Farms {
     }
 
     return { key: userStateAddress, userState: userStateAccount.data };
+  }
+
+  async getCurrentTimeUnitForFarm(farmState: FarmState): Promise<BN> {
+    // Use a finalized slot so cooldown status is conservative; processed slots can also lack block time.
+    const slot = await this._connection
+      .getSlot({ commitment: "finalized" })
+      .send();
+
+    if (farmState.timeUnit === TimeUnit.Slots) {
+      return new BN(slot.toString());
+    }
+
+    if (farmState.timeUnit === TimeUnit.Seconds) {
+      const timestamp = await this._connection.getBlockTime(slot).send();
+      if (timestamp === null) {
+        throw new Error(
+          `Could not resolve block time for slot ${slot.toString()}`,
+        );
+      }
+
+      return new BN(timestamp.toString());
+    }
+
+    throw new Error(`Unsupported farm time unit ${farmState.timeUnit}`);
+  }
+
+  async getPendingWithdrawalCooldownStatus(
+    userStateAddress: Address,
+  ): Promise<PendingWithdrawalCooldownStatus> {
+    const userStateAccount = await fetchMaybeUserState(
+      this._connection,
+      userStateAddress,
+    );
+    if (!userStateAccount.exists) {
+      throw new Error(`User state not found ${userStateAddress.toString()}`);
+    }
+
+    const farmAccount = await fetchMaybeFarmState(
+      this._connection,
+      userStateAccount.data.farmState,
+    );
+    if (!farmAccount.exists) {
+      throw new Error(
+        `Farm state not found ${userStateAccount.data.farmState.toString()}`,
+      );
+    }
+
+    const currentTimeUnit = await this.getCurrentTimeUnitForFarm(
+      farmAccount.data,
+    );
+
+    return calculatePendingWithdrawalCooldownStatus(
+      farmAccount.data,
+      userStateAccount.data,
+      currentTimeUnit,
+      userStateAddress,
+    );
+  }
+
+  async getPendingWithdrawalCooldownStatusForUser(
+    user: Address,
+    farm: Address | FarmAndKey,
+  ): Promise<PendingWithdrawalCooldownStatus> {
+    const farmAddress = typeof farm === "string" ? farm : farm.key;
+    const userStateAddress = await getUserStatePDA(
+      this._farmsProgramId,
+      farmAddress,
+      user,
+    );
+
+    if (typeof farm === "string") {
+      return this.getPendingWithdrawalCooldownStatus(userStateAddress);
+    }
+
+    const userStateAccount = await fetchMaybeUserState(
+      this._connection,
+      userStateAddress,
+    );
+    if (!userStateAccount.exists) {
+      throw new Error(`User state not found ${userStateAddress.toString()}`);
+    }
+    if (userStateAccount.data.farmState !== farmAddress) {
+      throw new Error(
+        `User state ${userStateAddress.toString()} belongs to farm ${userStateAccount.data.farmState.toString()}, not ${farmAddress.toString()}`,
+      );
+    }
+    if (farm.farmState.token.mint !== DEFAULT_PUBLIC_KEY) {
+      const expectedFarmVault = await getFarmVaultPDA(
+        this._farmsProgramId,
+        farmAddress,
+        farm.farmState.token.mint,
+      );
+      if (farm.farmState.farmVault !== expectedFarmVault) {
+        throw new Error(
+          `Farm state data does not match farm address ${farmAddress.toString()}`,
+        );
+      }
+    }
+
+    const currentTimeUnit = await this.getCurrentTimeUnitForFarm(
+      farm.farmState,
+    );
+
+    return calculatePendingWithdrawalCooldownStatus(
+      farm.farmState,
+      userStateAccount.data,
+      currentTimeUnit,
+      userStateAddress,
+    );
+  }
+
+  async getPendingWithdrawalCooldownStatusForWalletAndFarm(
+    wallet: Address,
+    farm: Address | FarmAndKey,
+  ): Promise<PendingWithdrawalCooldownStatus> {
+    return this.getPendingWithdrawalCooldownStatusForUser(wallet, farm);
   }
 
   async getUserTokensInUndelegatedFarm(
@@ -2394,6 +2526,51 @@ export async function getCurrentTimeUnit(
   } else {
     return new Decimal(slot.toString());
   }
+}
+
+export function calculatePendingWithdrawalCooldownStatus(
+  farmState: FarmState,
+  userState: UserState,
+  currentTimeUnit: BN,
+  userStateAddress?: Address,
+): PendingWithdrawalCooldownStatus {
+  const unit = getPendingWithdrawalCooldownUnit(farmState);
+  const unlockAt = new BN(userState.pendingWithdrawalUnstakeTs.toString());
+  const pendingWithdrawalUnstakeScaled = new BN(
+    userState.pendingWithdrawalUnstakeScaled.toString(),
+  );
+  const hasPendingWithdrawal = pendingWithdrawalUnstakeScaled.gt(new BN(0));
+  const remaining =
+    hasPendingWithdrawal && unlockAt.gt(currentTimeUnit)
+      ? unlockAt.sub(currentTimeUnit)
+      : new BN(0);
+
+  return {
+    userStateAddress,
+    farm: userState.farmState,
+    stakeTokenMint: farmState.token.mint,
+    hasPendingWithdrawal,
+    pendingWithdrawalUnstakeScaled,
+    canWithdraw: hasPendingWithdrawal && remaining.isZero(),
+    currentTimeUnit,
+    unlockAt,
+    remaining,
+    unit,
+  };
+}
+
+function getPendingWithdrawalCooldownUnit(
+  farmState: FarmState,
+): PendingWithdrawalCooldownUnit {
+  if (farmState.timeUnit === TimeUnit.Seconds) {
+    return "seconds";
+  }
+
+  if (farmState.timeUnit === TimeUnit.Slots) {
+    return "slots";
+  }
+
+  throw new Error(`Unsupported farm time unit ${farmState.timeUnit}`);
 }
 
 export async function getCurrentRps(

@@ -132,6 +132,48 @@ For a full example check `farms-sdk/src/commands/example_update_rps_and_top_up.t
 
 `yarn cli get-all-farms-for-user-without-filter --wallet <wallet_pk>`
 
+### How to check if an unstaked deposit can be withdrawn
+
+If the caller only has the user's wallet and the farm address, the SDK derives
+the user state PDA, fetches the user state, fetches the farm state, and compares
+`pendingWithdrawalUnstakeTs` against the farm's current time unit.
+
+```ts
+import { address } from "@solana/kit";
+import { Farms } from "@kamino-finance/farms-sdk";
+
+const farmsClient = new Farms(rpc);
+
+const wallet = address("USER_WALLET_ADDRESS");
+const farm = address("FARM_ADDRESS");
+
+const cooldown = await farmsClient.getPendingWithdrawalCooldownStatusForUser(
+  wallet,
+  farm,
+);
+
+if (cooldown.canWithdraw) {
+  const withdrawIx = await farmsClient.withdrawUnstakedDepositIx(
+    userSigner,
+    cooldown.userStateAddress!,
+    farm,
+    cooldown.stakeTokenMint,
+  );
+}
+
+console.log(`Remaining: ${cooldown.remaining.toString()} ${cooldown.unit}`);
+```
+
+If the farm state is already fetched, pass it to avoid fetching the farm again:
+
+```ts
+const cooldown =
+  await farmsClient.getPendingWithdrawalCooldownStatusForWalletAndFarm(wallet, {
+    key: farm,
+    farmState,
+  });
+```
+
 ### How to top up a farm - permissionless
 
 ```ts
