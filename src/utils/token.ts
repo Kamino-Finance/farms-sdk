@@ -2,7 +2,7 @@ import {
   Address,
   GetAccountInfoApi,
   GetMinimumBalanceForRentExemptionApi,
-  IInstruction,
+  Instruction,
   Rpc,
   TransactionSigner,
 } from "@solana/kit";
@@ -24,7 +24,7 @@ export async function createMintInstructions(
   authority: TransactionSigner,
   mint: TransactionSigner,
   decimals: number,
-): Promise<IInstruction[]> {
+): Promise<Instruction[]> {
   return [
     getCreateAccountInstruction({
       payer: authority,
@@ -72,7 +72,7 @@ export async function createAssociatedTokenAccountIdempotentInstruction(
   tokenProgram: Address,
   owner: Address = payer.address,
   ata?: Address,
-): Promise<[Address, IInstruction]> {
+): Promise<[Address, Instruction]> {
   let ataAddress = ata;
   if (!ataAddress) {
     ataAddress = await getAssociatedTokenAddress(owner, mint, tokenProgram);

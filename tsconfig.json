@@ -6,12 +6,6 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
     "rootDir": "src",
-    "typeRoots": [
-      "../node_modules/@types",
-      "../node_modules/@coral-xyz/anchor/types",
-      "node_modules/@types",
-      "node_modules/@coral-xyz/anchor/types"
-    ],
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,

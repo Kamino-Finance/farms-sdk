@@ -18,7 +18,7 @@ export async function getRewardsApyForStrategy(
     throw new Error(`Strategy state not found for strategy: ${strategy}`);
   }
   const farm = strategyState.farm;
-  const stakedTokenMintDecimals = strategyState.sharesMintDecimals.toNumber();
+  const stakedTokenMintDecimals = Number(strategyState.sharesMintDecimals);
   const stakedTokenPrice = await kaminoClient.getStrategySharePrice(strategy);
 
   const farmsClient = new Farms(connection);

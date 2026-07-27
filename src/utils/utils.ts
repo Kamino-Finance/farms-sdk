@@ -1,7 +1,7 @@
 import { getFarmsErrorMessage } from "../@codegen/farms/errors/farms";
 import {
   Address,
-  IInstruction,
+  Instruction,
   Rpc,
   GetBalanceApi,
   address,
@@ -180,7 +180,7 @@ export async function getSolBalance(
 
 export function createAddExtraComputeUnitsTransaction(
   units: number,
-): IInstruction {
+): Instruction {
   return getSetComputeUnitLimitInstruction({ units });
 }
 
@@ -392,7 +392,7 @@ export async function createKeypairRentExemptIx(
   account: TransactionSigner,
   size: bigint,
   programId: Address = FARMS_PROGRAM_ADDRESS,
-): Promise<IInstruction> {
+): Promise<Instruction> {
   return getCreateAccountInstruction({
     payer: payer,
     space: size,

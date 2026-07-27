@@ -7,7 +7,7 @@ Farms SDK is a TypeScript client SDK for easy access to the Farms on-chain data.
 [![npm](https://img.shields.io/npm/v/@kamino-finance/farms-sdk)](https://www.npmjs.com/package/@kamino-finance/farms-sdk)
 
 ```shell
-npm install @solana/web3.js decimal.js @kamino-finance/farms-sdk 
+npm install @solana/kit decimal.js @kamino-finance/farms-sdk 
 ```
 
 ```shell

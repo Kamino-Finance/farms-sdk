@@ -1,18 +1,14 @@
 import {
   Address,
   getAddressEncoder,
-  IInstruction,
+  Instruction,
   Option,
   TransactionSigner,
   unwrapOption,
 } from "@solana/kit";
 
 import { FarmConfigOption, GlobalConfigOption } from "../@codegen/farms/types";
-import {
-  getGlobalConfigValue,
-  getUserStatePDA,
-  GlobalConfigFlagValueType,
-} from "./utils";
+import { getGlobalConfigValue, GlobalConfigFlagValueType } from "./utils";
 import { RewardCurvePoint } from "../Farms";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
@@ -54,7 +50,7 @@ export function initializeGlobalConfig(
   globalAdmin: TransactionSigner,
   globalConfig: Address,
   treasuryVaultAuthority: Address,
-): IInstruction {
+): Instruction {
   return getInitializeGlobalConfigInstruction({
     globalAdmin,
     globalConfig,
@@ -69,7 +65,7 @@ export function updateGlobalConfig(
   mode: GlobalConfigOption,
   flagValue: string,
   flagValueType: GlobalConfigFlagValueType,
-): IInstruction {
+): Instruction {
   let formattedValue = getGlobalConfigValue(flagValueType, flagValue);
 
   return getUpdateGlobalConfigInstruction({
@@ -83,7 +79,7 @@ export function updateGlobalConfig(
 export function updateGlobalConfigAdmin(
   pendingGlobalAdmin: TransactionSigner,
   globalConfig: Address,
-): IInstruction {
+): Instruction {
   return getUpdateGlobalConfigAdminInstruction({
     pendingGlobalAdmin,
     globalConfig,
@@ -95,7 +91,7 @@ export function updateSecondDelegatedAuthority(
   globalConfig: Address,
   farm: Address,
   newSecondAuthority: Address,
-): IInstruction {
+): Instruction {
   return getUpdateSecondDelegatedAuthorityInstruction({
     globalAdmin: globalConfigAdmin,
     farmState: farm,
@@ -107,7 +103,7 @@ export function updateSecondDelegatedAuthority(
 export function updateFarmAdmin(
   pendingFarmAdmin: TransactionSigner,
   farm: Address,
-): IInstruction {
+): Instruction {
   return getUpdateFarmAdminInstruction({
     pendingFarmAdmin,
     farmState: farm,
@@ -121,7 +117,7 @@ export function initializeFarm(
   farmVault: Address,
   farmVaultAuthority: Address,
   tokenMint: Address,
-): IInstruction {
+): Instruction {
   return getInitializeFarmInstruction({
     farmAdmin,
     farmState,
@@ -141,7 +137,7 @@ export function initializeFarmDelegated(
   farmState: Address,
   farmVaultAuthority: Address,
   farmDelegate: TransactionSigner,
-): IInstruction {
+): Instruction {
   return getInitializeFarmDelegatedInstruction({
     farmAdmin,
     farmState,
@@ -163,7 +159,7 @@ export function initializeReward(
   farmVaultAuthority: Address,
   rewardMint: Address,
   tokenProgram: Address,
-): IInstruction {
+): Instruction {
   return getInitializeRewardInstruction({
     farmAdmin,
     farmState,
@@ -190,7 +186,7 @@ export function addReward(
   rewardIndex: number,
   tokenProgram: Address,
   amount: bigint,
-): IInstruction {
+): Instruction {
   return getAddRewardsInstruction({
     payer,
     farmState,
@@ -213,7 +209,7 @@ export function rewardUserOnce(
   amount: bigint,
   expectedRewardsIssuedCumulative: bigint,
   userStateId: bigint,
-): IInstruction {
+): Instruction {
   return getRewardUserOnceInstruction({
     delegateAuthority,
     farmState,
@@ -236,7 +232,7 @@ export function withdrawReward(
   tokenProgram: Address,
   rewardIndex: number,
   amount: bigint,
-): IInstruction {
+): Instruction {
   return getWithdrawRewardInstruction({
     farmAdmin: admin,
     farmState,
@@ -256,7 +252,7 @@ export function closeEmptyUserState(
   userState: Address,
   farmState: Address,
   rentReceiver: Address,
-): IInstruction {
+): Instruction {
   return getCloseEmptyUserStateInstruction({
     signer,
     userState,
@@ -273,7 +269,7 @@ export function updateFarmConfig(
   rewardIndex: number,
   mode: FarmConfigOption,
   value: number | Address | number[] | RewardCurvePoint[] | bigint,
-): IInstruction {
+): Instruction {
   let data: Uint8Array = new Uint8Array();
   switch (mode) {
     case FarmConfigOption.LockingStartTimestamp:
@@ -328,7 +324,7 @@ export function updateFarmConfig(
 export function refreshFarm(
   farmState: Address,
   scopePrices: Option<Address>,
-): IInstruction {
+): Instruction {
   return getRefreshFarmInstruction({
     farmState,
     scopePrices: optionToAddress(scopePrices),
@@ -341,7 +337,7 @@ export function initializeUser(
   userState: Address,
   authority: TransactionSigner,
   delegatee: Address = owner,
-): IInstruction {
+): Instruction {
   return getInitializeUserInstruction({
     authority,
     payer: authority,
@@ -362,7 +358,7 @@ export function transferOwnership(
   newUserState: Address,
   scopePrices: Option<Address>,
   payer: TransactionSigner = oldOwner,
-): IInstruction {
+): Instruction {
   return getTransferOwnershipInstruction({
     oldOwner,
     payer,
@@ -385,7 +381,7 @@ export function stake(
   tokenMint: Address,
   scopePrices: Option<Address>,
   amount: bigint,
-): IInstruction {
+): Instruction {
   return getStakeInstruction({
     owner,
     userState,
@@ -405,7 +401,7 @@ export function unstake(
   farmState: Address,
   scopePrices: Option<Address>,
   amount: bigint,
-): IInstruction {
+): Instruction {
   return getUnstakeInstruction({
     owner,
     userState,
@@ -428,7 +424,7 @@ export function harvestReward(
   scopePrices: Option<Address>,
   tokenProgram: Address,
   rewardIndex: number,
-): IInstruction {
+): Instruction {
   return getHarvestRewardInstruction({
     payer,
     userState,
@@ -453,7 +449,7 @@ export function withdrawTreasury(
   globalAdminWithdrawAta: Address,
   amount: bigint,
   rewardMint: Address,
-): IInstruction {
+): Instruction {
   return getWithdrawTreasuryInstruction({
     globalAdmin,
     globalConfig,
@@ -470,7 +466,7 @@ export function refreshUserState(
   userState: Address,
   farmState: Address,
   scopePrices: Option<Address>,
-): IInstruction {
+): Instruction {
   return getRefreshUserStateInstruction({
     userState,
     farmState,
@@ -485,7 +481,7 @@ export function withdrawUnstakedDeposit(
   userAta: Address,
   farmVault: Address,
   farmVaultsAuthority: Address,
-): IInstruction {
+): Instruction {
   return getWithdrawUnstakedDepositsInstruction({
     owner,
     userState,
@@ -504,7 +500,7 @@ export function withdrawFromFarmVault(
   farmVault: Address,
   farmVaultsAuthority: Address,
   amount: bigint,
-): IInstruction {
+): Instruction {
   return getWithdrawFromFarmVaultInstruction({
     farmState,
     withdrawAuthority,
@@ -522,7 +518,7 @@ export function depositToFarmVault(
   farmVault: Address,
   depositorAta: Address,
   amount: bigint,
-): IInstruction {
+): Instruction {
   return getDepositToFarmVaultInstruction({
     depositor,
     farmState,

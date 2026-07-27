@@ -1,7 +1,9 @@
-import { OraclePrices } from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
+import {
+  fetchMaybeOraclePrices,
+  OraclePrices,
+} from "@kamino-finance/scope-sdk/dist/@codegen/scope/accounts";
 import {
   Address,
-  address,
   Base58EncodedBytes,
   GetProgramAccountsDatasizeFilter,
   GetProgramAccountsMemcmpFilter,
@@ -79,10 +81,8 @@ import {
 } from "./utils/token";
 import { GlobalConfigOption } from "./@codegen/farms/types";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { Connection } from "@solana/web3.js";
 import { backOff, IBackOffOptions } from "exponential-backoff";
 import { decompress } from "fzstd";
-import BN from "bn.js";
 import { getRewardsApyForStrategy } from "./utils";
 import { U64_MAX } from "./utils/consts";
 import {
@@ -122,11 +122,11 @@ export interface PendingWithdrawalCooldownStatus {
   farm: Address;
   stakeTokenMint: Address;
   hasPendingWithdrawal: boolean;
-  pendingWithdrawalUnstakeScaled: BN;
+  pendingWithdrawalUnstakeScaled: bigint;
   canWithdraw: boolean;
-  currentTimeUnit: BN;
-  unlockAt: BN;
-  remaining: BN;
+  currentTimeUnit: bigint;
+  unlockAt: bigint;
+  remaining: bigint;
   unit: PendingWithdrawalCooldownUnit;
 }
 
@@ -161,8 +161,7 @@ export class Farms {
 
   async getAllUserStatesForUser(user: Address): Promise<Array<UserAndKey>> {
     let filters: (
-      | GetProgramAccountsDatasizeFilter
-      | GetProgramAccountsMemcmpFilter
+      GetProgramAccountsDatasizeFilter | GetProgramAccountsMemcmpFilter
     )[] = [];
 
     filters.push({
@@ -198,8 +197,7 @@ export class Farms {
     farm: Address,
   ): Promise<Array<UserAndKey>> {
     let filters: (
-      | GetProgramAccountsDatasizeFilter
-      | GetProgramAccountsMemcmpFilter
+      GetProgramAccountsDatasizeFilter | GetProgramAccountsMemcmpFilter
     )[] = [];
 
     filters.push({
@@ -358,8 +356,7 @@ export class Farms {
 
   async getFarmsForMint(mint: Address): Promise<Array<FarmAndKey>> {
     let filters: (
-      | GetProgramAccountsDatasizeFilter
-      | GetProgramAccountsMemcmpFilter
+      GetProgramAccountsDatasizeFilter | GetProgramAccountsMemcmpFilter
     )[] = [];
 
     filters.push({
@@ -661,12 +658,13 @@ export class Farms {
     let oraclePrices: OraclePrices | null = null;
 
     if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
-      oraclePrices = await OraclePrices.fetch(
+      const account = await fetchMaybeOraclePrices(
         this._connection,
         farmState.scopePrices,
       );
+      oraclePrices = account.exists ? account.data : null;
       if (!oraclePrices) {
-        throw new Error("Error fetching oracle prces");
+        throw new Error("Error fetching oracle prices");
       }
     }
 
@@ -1050,14 +1048,14 @@ export class Farms {
     return { key: userStateAddress, userState: userStateAccount.data };
   }
 
-  async getCurrentTimeUnitForFarm(farmState: FarmState): Promise<BN> {
+  async getCurrentTimeUnitForFarm(farmState: FarmState): Promise<bigint> {
     // Use a finalized slot so cooldown status is conservative; processed slots can also lack block time.
     const slot = await this._connection
       .getSlot({ commitment: "finalized" })
       .send();
 
     if (farmState.timeUnit === TimeUnit.Slots) {
-      return new BN(slot.toString());
+      return slot;
     }
 
     if (farmState.timeUnit === TimeUnit.Seconds) {
@@ -1068,7 +1066,7 @@ export class Farms {
         );
       }
 
-      return new BN(timestamp.toString());
+      return timestamp;
     }
 
     throw new Error(`Unsupported farm time unit ${farmState.timeUnit}`);
@@ -1256,10 +1254,11 @@ export class Farms {
     // get oraclePrices
     let oraclePrices: OraclePrices | null = null;
     if (farmState.scopePrices !== DEFAULT_PUBLIC_KEY) {
-      oraclePrices = await OraclePrices.fetch(
+      const account = await fetchMaybeOraclePrices(
         this._connection,
         farmState.scopePrices,
       );
+      oraclePrices = account.exists ? account.data : null;
       if (!oraclePrices) {
         throw new Error("Error fetching oracle prices");
       }
@@ -2531,19 +2530,18 @@ export async function getCurrentTimeUnit(
 export function calculatePendingWithdrawalCooldownStatus(
   farmState: FarmState,
   userState: UserState,
-  currentTimeUnit: BN,
+  currentTimeUnit: bigint,
   userStateAddress?: Address,
 ): PendingWithdrawalCooldownStatus {
   const unit = getPendingWithdrawalCooldownUnit(farmState);
-  const unlockAt = new BN(userState.pendingWithdrawalUnstakeTs.toString());
-  const pendingWithdrawalUnstakeScaled = new BN(
-    userState.pendingWithdrawalUnstakeScaled.toString(),
-  );
-  const hasPendingWithdrawal = pendingWithdrawalUnstakeScaled.gt(new BN(0));
+  const unlockAt = userState.pendingWithdrawalUnstakeTs;
+  const pendingWithdrawalUnstakeScaled =
+    userState.pendingWithdrawalUnstakeScaled;
+  const hasPendingWithdrawal = pendingWithdrawalUnstakeScaled > 0n;
   const remaining =
-    hasPendingWithdrawal && unlockAt.gt(currentTimeUnit)
-      ? unlockAt.sub(currentTimeUnit)
-      : new BN(0);
+    hasPendingWithdrawal && unlockAt > currentTimeUnit
+      ? unlockAt - currentTimeUnit
+      : 0n;
 
   return {
     userStateAddress,
@@ -2551,7 +2549,7 @@ export function calculatePendingWithdrawalCooldownStatus(
     stakeTokenMint: farmState.token.mint,
     hasPendingWithdrawal,
     pendingWithdrawalUnstakeScaled,
-    canWithdraw: hasPendingWithdrawal && remaining.isZero(),
+    canWithdraw: hasPendingWithdrawal && remaining === 0n,
     currentTimeUnit,
     unlockAt,
     remaining,
